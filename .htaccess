@@ -1,0 +1,15 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Если файл или папка существуют - не перенаправлять
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # Перенаправляем все запросы на index.php
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+
+# Если mod_rewrite не работает, показываем ошибку
+<IfModule !mod_rewrite.c>
+    ErrorDocument 404 "Mod_Rewrite is not enabled"
+</IfModule>
