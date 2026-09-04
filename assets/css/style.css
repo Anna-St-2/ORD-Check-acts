@@ -398,6 +398,33 @@ body {
     padding: 32px;
 }
 
+/* ===== КАРТОЧКИ ===== */
+.card {
+    background: white;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--gray-200);
+    overflow: hidden;
+    margin-top: 20pt; /* ДОБАВЛЕНО */
+}
+
+.card-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--gray-200);
+    background: var(--gray-50);
+}
+
+.card-header h5 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--gray-800);
+    margin: 0;
+}
+
+.card-body {
+    padding: 24px;
+}
+
 /* ===== ВКЛАДКИ ===== */
 .nav-tabs {
     border-bottom: 2px solid var(--gray-200);
@@ -449,32 +476,6 @@ body {
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
-}
-
-/* ===== КАРТОЧКИ ===== */
-.card {
-    background: white;
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    border: 1px solid var(--gray-200);
-    overflow: hidden;
-}
-
-.card-header {
-    padding: 20px 24px;
-    border-bottom: 1px solid var(--gray-200);
-    background: var(--gray-50);
-}
-
-.card-header h5 {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--gray-800);
-    margin: 0;
-}
-
-.card-body {
-    padding: 24px;
 }
 
 /* ===== ФОРМЫ ===== */
@@ -572,6 +573,166 @@ body {
     transition: width 0.5s ease;
 }
 
+/* ===== СТИЛИ ДЛЯ ЗАГРУЗКИ ФАЙЛОВ ===== */
+.file-upload-small {
+    max-width: 400px;
+}
+
+.file-upload-wrapper {
+    border: 2px dashed var(--gray-300);
+    border-radius: var(--radius-sm);
+    padding: 20px;
+    text-align: center;
+    transition: var(--transition);
+    cursor: pointer;
+    background: var(--gray-50);
+}
+
+.file-upload-small .file-upload-wrapper {
+    padding: 16px;
+}
+
+.file-upload-small .file-icon {
+    font-size: 28px;
+}
+
+.file-upload-small .file-text {
+    font-size: 13px;
+}
+
+.file-upload-wrapper:hover {
+    border-color: var(--primary-color);
+    background: #F8FAFF;
+}
+
+.file-upload-wrapper .file-icon {
+    font-size: 40px;
+    color: var(--gray-400);
+    margin-bottom: 8px;
+}
+
+.file-upload-wrapper .file-text {
+    color: var(--gray-500);
+    font-size: 14px;
+}
+
+.file-upload-wrapper .file-text strong {
+    color: var(--primary-color);
+}
+
+/* ===== БЛОК API ===== */
+.api-section {
+    background: linear-gradient(135deg, #F8FAFF 0%, #EEF2FF 100%);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    border: 2px solid #E0E7FF;
+    position: relative;
+}
+
+.api-section .api-label {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--gray-700);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.api-section .api-label i {
+    color: var(--primary-color);
+    font-size: 18px;
+}
+
+.api-section .form-control {
+    background: white;
+    border-color: #D1D5EB;
+}
+
+.api-section .form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+}
+
+.api-section .btn-primary {
+    padding: 10px 20px;
+    font-size: 14px;
+}
+
+/* ===== ЧЕКБОКСЫ ===== */
+.form-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.form-check-input {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--gray-300);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.form-check-input:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.form-check-label {
+    font-size: 14px;
+    color: var(--gray-700);
+    cursor: pointer;
+}
+
+/* ===== КНОПКИ ===== */
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 32px;
+    font-size: 15px;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+}
+
+.btn-outline-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--primary-color);
+    background: transparent;
+    border: 2px solid var(--primary-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-outline-primary:hover {
+    background: var(--primary-color);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.btn-sm {
+    padding: 6px 14px;
+    font-size: 13px;
+}
+
 /* ===== ОТВЕТСТВЕННЫЙ ДИЗАЙН ===== */
 @media (max-width: 768px) {
     .sidebar {
@@ -613,6 +774,11 @@ body {
     .mobile-toggle {
         display: block !important;
     }
+    
+    .api-section .api-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 
 .mobile-toggle {
@@ -625,60 +791,168 @@ body {
     padding: 4px;
 }
 
-/* ===== СТИЛИ ДЛЯ ЗАГРУЗКИ ФАЙЛОВ ===== */
-.file-upload-wrapper {
-    border: 2px dashed var(--gray-300);
-    border-radius: var(--radius-sm);
-    padding: 20px;
-    text-align: center;
-    transition: var(--transition);
+/* ===== SELECT С МНОЖЕСТВЕННЫМ ВЫБОРОМ ===== */
+select[multiple] {
+    min-height: 100px;
+}
+
+select[multiple] option {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--gray-100);
+}
+
+select[multiple] option:checked {
+    background: var(--primary-color) linear-gradient(0deg, var(--primary-color) 0%, var(--primary-color) 100%);
+    color: white;
+}
+
+/* ===== ЧЕКБОКСЫ ЮНИТОВ ===== */
+.unit-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    padding: 8px 0;
+}
+
+.unit-checkboxes .form-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 0;
+}
+
+.unit-checkboxes .form-check-input {
+    width: 16px;
+    height: 16px;
+    margin-top: 0;
     cursor: pointer;
-    background: var(--gray-50);
 }
 
-.file-upload-wrapper:hover {
-    border-color: var(--primary-color);
-    background: #F8FAFF;
-}
-
-.file-upload-wrapper .file-icon {
-    font-size: 40px;
-    color: var(--gray-400);
-    margin-bottom: 8px;
-}
-
-.file-upload-wrapper .file-text {
-    color: var(--gray-500);
+.unit-checkboxes .form-check-label {
     font-size: 14px;
+    font-weight: 400;
+    cursor: pointer;
 }
 
-.file-upload-wrapper .file-text strong {
+.unit-checkboxes .form-check-label strong {
     color: var(--primary-color);
 }
 
-/* ===== ЧЕКБОКСЫ ===== */
-.form-check {
+/* ===== DROPDOWN С ЧЕКБОКСАМИ ===== */
+.dropdown-checkboxes {
+    position: relative;
+}
+
+.dropdown-checkboxes .dropdown-toggle {
+    width: 100%;
+    padding: 10px 14px;
+    background: white;
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: var(--transition);
+    font-size: 14px;
+    color: var(--gray-700);
+    user-select: none;
+}
+
+.dropdown-checkboxes .dropdown-toggle:hover {
+    border-color: var(--gray-300);
+    background: var(--gray-50);
+}
+
+.dropdown-checkboxes .dropdown-toggle:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+}
+
+.dropdown-checkboxes .dropdown-toggle .arrow {
+    transition: transform 0.3s ease;
+    color: var(--gray-400);
+    margin-left: 8px;
+    font-size: 14px;
+}
+
+.dropdown-checkboxes .dropdown-toggle .arrow.open {
+    transform: rotate(180deg);
+    color: var(--primary-color);
+}
+
+.dropdown-checkboxes .dropdown-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: white;
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    padding: 8px 0;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+    box-shadow: var(--shadow-lg);
+}
+
+.dropdown-checkboxes .dropdown-menu.open {
+    display: block;
+}
+
+.dropdown-checkboxes .dropdown-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+.dropdown-checkboxes .dropdown-menu::-webkit-scrollbar-track {
+    background: var(--gray-100);
+    border-radius: 10px;
+}
+
+.dropdown-checkboxes .dropdown-menu::-webkit-scrollbar-thumb {
+    background: var(--gray-300);
+    border-radius: 10px;
+}
+
+.dropdown-checkboxes .dropdown-item {
+    padding: 8px 16px;
     display: flex;
     align-items: center;
     gap: 10px;
-}
-
-.form-check-input {
-    width: 18px;
-    height: 18px;
-    border: 2px solid var(--gray-300);
-    border-radius: 4px;
     cursor: pointer;
     transition: var(--transition);
 }
 
-.form-check-input:checked {
-    background-color: var(--primary-color);
-    border-color: var(--primary-color);
+.dropdown-checkboxes .dropdown-item:hover {
+    background: var(--gray-50);
 }
 
-.form-check-label {
+.dropdown-checkboxes .dropdown-item input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    cursor: pointer;
+    accent-color: var(--primary-color);
+    flex-shrink: 0;
+    margin: 0;
+}
+
+.dropdown-checkboxes .dropdown-item label {
     font-size: 14px;
+    font-weight: 400;
     color: var(--gray-700);
     cursor: pointer;
+    margin: 0;
+    flex: 1;
+}
+
+.dropdown-checkboxes .dropdown-item.select-all {
+    border-bottom: 1px solid var(--gray-200);
+    margin-bottom: 4px;
+    padding-bottom: 10px;
+}
+
+.dropdown-checkboxes .dropdown-item.select-all label {
+    font-weight: 600;
+    color: var(--primary-color);
 }
