@@ -183,7 +183,7 @@ if (!isset($_SESSION['user_id'])) {
                         <div id="fileStatus" class="mt-3"></div>
 
                         <!-- Область для отображения таблиц (пока скрыта) -->
-                        <div id="tablesContainer" class="mt-4" style="display: none;">
+                        <!-- <div id="tablesContainer" class="mt-4" style="display: none;">
                             <hr>
                             <h6><i class="fas fa-table"></i> Сравнение данных</h6>
                             <div class="row">
@@ -209,7 +209,7 @@ if (!isset($_SESSION['user_id'])) {
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </div> -->
                     </div>
                 </div>
             </div>
@@ -240,100 +240,100 @@ if (!isset($_SESSION['user_id'])) {
         });
 
         // ---------- DROPDOWN ДЛЯ ЮНИТОВ ----------
-function toggleUnitDropdown() {
-    const menu = document.getElementById('unitDropdownMenu');
-    const arrow = document.querySelector('.dropdown-toggle .arrow');
-    if (menu) {
-        menu.classList.toggle('open');
-    }
-    if (arrow) {
-        arrow.classList.toggle('open');
-    }
-}
+        function toggleUnitDropdown() {
+            const menu = document.getElementById('unitDropdownMenu');
+            const arrow = document.querySelector('.dropdown-toggle .arrow');
+            if (menu) {
+                menu.classList.toggle('open');
+            }
+            if (arrow) {
+                arrow.classList.toggle('open');
+            }
+        }
 
-// Закрывать dropdown при клике вне его
-document.addEventListener('click', function(event) {
-    const dropdown = document.getElementById('unitDropdown');
-    if (dropdown && !dropdown.contains(event.target)) {
-        const menu = document.getElementById('unitDropdownMenu');
-        const arrow = document.querySelector('.dropdown-toggle .arrow');
-        if (menu) menu.classList.remove('open');
-        if (arrow) arrow.classList.remove('open');
-    }
-});
+        // Закрывать dropdown при клике вне его
+        document.addEventListener('click', function (event) {
+            const dropdown = document.getElementById('unitDropdown');
+            if (dropdown && !dropdown.contains(event.target)) {
+                const menu = document.getElementById('unitDropdownMenu');
+                const arrow = document.querySelector('.dropdown-toggle .arrow');
+                if (menu) menu.classList.remove('open');
+                if (arrow) arrow.classList.remove('open');
+            }
+        });
 
-// Генерация чекбоксов юнитов внутри dropdown
-function renderUnitCheckboxes() {
-    const units = [
-        'Deaz.io', 'HPlatformFull', 'HPlatformSelf', 'Hybe', 
-        'India', 'Indonesia', 'INSEA', 'KidsProject', 'Mapps',
-        'MetaverseGlobal', 'MetaverseRu', 'Poland', 'Tambov',
-        'Thailand', 'Trackadero', 'Ukraine', 'Vietnam', 'VoxRussia'
-    ];
-    const container = document.getElementById('unitCheckboxes');
-    let html = `
+        // Генерация чекбоксов юнитов внутри dropdown
+        function renderUnitCheckboxes() {
+            const units = [
+                'Deaz.io', 'HPlatformFull', 'HPlatformSelf', 'Hybe',
+                'India', 'Indonesia', 'INSEA', 'KidsProject', 'Mapps',
+                'MetaverseGlobal', 'MetaverseRu', 'Poland', 'Tambov',
+                'Thailand', 'Trackadero', 'Ukraine', 'Vietnam', 'VoxRussia'
+            ];
+            const container = document.getElementById('unitCheckboxes');
+            let html = `
         <div class="dropdown-item select-all">
             <input type="checkbox" id="unit_all" checked>
             <label for="unit_all"><strong>Все юниты</strong></label>
         </div>
     `;
-    units.forEach(unit => {
-        const id = 'unit_' + unit.replace(/[\.\-]/g, '_');
-        html += `
+            units.forEach(unit => {
+                const id = 'unit_' + unit.replace(/[\.\-]/g, '_');
+                html += `
             <div class="dropdown-item">
                 <input type="checkbox" id="${id}" value="${unit}" class="unit-checkbox" checked>
                 <label for="${id}">${unit}</label>
             </div>
         `;
-    });
-    container.innerHTML = html;
+            });
+            container.innerHTML = html;
 
-    // Логика "Выбрать все"
-    const allCheckbox = document.getElementById('unit_all');
-    const unitCheckboxes = document.querySelectorAll('.unit-checkbox');
-    
-    if (allCheckbox) {
-        allCheckbox.addEventListener('change', function() {
-            const isChecked = this.checked;
-            unitCheckboxes.forEach(cb => cb.checked = isChecked);
+            // Логика "Выбрать все"
+            const allCheckbox = document.getElementById('unit_all');
+            const unitCheckboxes = document.querySelectorAll('.unit-checkbox');
+
+            if (allCheckbox) {
+                allCheckbox.addEventListener('change', function () {
+                    const isChecked = this.checked;
+                    unitCheckboxes.forEach(cb => cb.checked = isChecked);
+                    updateSelectedLabel();
+                });
+            }
+
+            unitCheckboxes.forEach(cb => {
+                cb.addEventListener('change', function () {
+                    const allChecked = Array.from(unitCheckboxes).every(c => c.checked);
+                    if (allCheckbox) allCheckbox.checked = allChecked;
+                    updateSelectedLabel();
+                });
+            });
+
             updateSelectedLabel();
+        }
+
+        function updateSelectedLabel() {
+            const checked = document.querySelectorAll('.unit-checkbox:checked');
+            const count = checked.length;
+            const total = document.querySelectorAll('.unit-checkbox').length;
+            const label = document.getElementById('selectedUnitsLabel');
+            if (!label) return;
+
+            if (count === total) {
+                label.textContent = 'Все юниты (' + total + ')';
+            } else if (count === 0) {
+                label.textContent = 'Выберите юниты';
+            } else {
+                const names = Array.from(checked).slice(0, 3).map(cb => cb.value);
+                const remainder = count - 3;
+                label.textContent = names.join(', ') + (remainder > 0 ? ` и еще ${remainder}` : '');
+            }
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function () {
+            renderUnitCheckboxes();
+            loadHistory();
         });
-    }
-
-    unitCheckboxes.forEach(cb => {
-        cb.addEventListener('change', function() {
-            const allChecked = Array.from(unitCheckboxes).every(c => c.checked);
-            if (allCheckbox) allCheckbox.checked = allChecked;
-            updateSelectedLabel();
-        });
-    });
-
-    updateSelectedLabel();
-}
-
-function updateSelectedLabel() {
-    const checked = document.querySelectorAll('.unit-checkbox:checked');
-    const count = checked.length;
-    const total = document.querySelectorAll('.unit-checkbox').length;
-    const label = document.getElementById('selectedUnitsLabel');
-    if (!label) return;
-    
-    if (count === total) {
-        label.textContent = 'Все юниты (' + total + ')';
-    } else if (count === 0) {
-        label.textContent = 'Выберите юниты';
-    } else {
-        const names = Array.from(checked).slice(0, 3).map(cb => cb.value);
-        const remainder = count - 3;
-        label.textContent = names.join(', ') + (remainder > 0 ? ` и еще ${remainder}` : '');
-    }
-}
-
-// Инициализация
-document.addEventListener('DOMContentLoaded', function() {
-    renderUnitCheckboxes();
-    loadHistory();
-});
 
 
         // Инициализация чекбоксов
@@ -364,6 +364,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // ---------- ОСНОВНАЯ ФУНКЦИЯ ЗАГРУЗКИ ----------
         function loadData() {
+            console.log('loadData() вызвана');
+
             // Проверяем файл
             const fileInput = document.getElementById('actsFile');
             if (!fileInput || !fileInput.files[0]) {
@@ -381,7 +383,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Проверяем выбор юнитов
             const selectedUnits = [];
-            document.querySelectorAll('.unit-checkbox:checked').forEach(cb => {
+            document.querySelectorAll('.unit-checkbox:checked').forEach(function (cb) {
                 selectedUnits.push(cb.value);
             });
             if (selectedUnits.length === 0) {
@@ -395,45 +397,60 @@ document.addEventListener('DOMContentLoaded', function() {
             const progressText = document.getElementById('progressText');
             progressDiv.style.display = 'block';
             progressBar.style.width = '0%';
-            progressText.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Загрузка данных...';
+            progressText.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Загрузка и обработка файла...';
 
-            // Имитация процесса загрузки
-            let progress = 0;
-            const interval = setInterval(() => {
-                progress += 10;
-                progressBar.style.width = progress + '%';
-                if (progress < 50) {
-                    progressText.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Чтение файла актов...';
-                } else if (progress < 80) {
-                    progressText.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Получение данных из API...';
-                } else {
-                    progressText.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Подготовка таблиц...';
-                }
-                if (progress >= 100) {
-                    clearInterval(interval);
+            // Отправляем файл через AJAX
+            const formData = new FormData();
+            formData.append('actsFile', fileInput.files[0]);
+
+            // ПРАВИЛЬНЫЙ ПУТЬ - файл в modules/api/
+            fetch('modules/api/upload_acts.php', {
+                method: 'POST',
+                body: formData
+            })
+                .then(function (response) {
+                    return response.text();
+                })
+                .then(function (text) {
+                    console.log('Ответ сервера:', text);
+                    try {
+                        const data = JSON.parse(text);
+                        if (data.success) {
+                            progressBar.style.width = '100%';
+                            progressText.innerHTML = '<i class="fas fa-check-circle" style="color:#10B981;"></i> Файл обработан! Найдено записей: ' + data.count;
+                            progressBar.classList.remove('progress-bar-animated');
+                            progressBar.classList.add('bg-success');
+
+                            setTimeout(function () {
+                                const params = new URLSearchParams({
+                                    start: start,
+                                    end: end,
+                                    units: selectedUnits.join(','),
+                                    file: encodeURIComponent(fileInput.files[0].name)
+                                });
+                                window.location.href = '/ORD-Check-acts/compare?' + params.toString();
+                            }, 1000);
+                        } else {
+                            progressBar.classList.remove('progress-bar-animated');
+                            progressBar.classList.add('bg-danger');
+                            progressText.innerHTML = '<i class="fas fa-times-circle" style="color:#EF4444;"></i> Ошибка: ' + data.error;
+                            showStatus('error', data.error);
+                        }
+                    } catch (e) {
+                        console.error('Ошибка парсинга JSON:', e, 'Текст:', text);
+                        progressBar.classList.remove('progress-bar-animated');
+                        progressBar.classList.add('bg-danger');
+                        progressText.innerHTML = '<i class="fas fa-times-circle" style="color:#EF4444;"></i> Ошибка обработки ответа';
+                        showStatus('error', 'Ошибка на сервере. Проверьте консоль.');
+                    }
+                })
+                .catch(function (error) {
+                    console.error('Ошибка запроса:', error);
                     progressBar.classList.remove('progress-bar-animated');
-                    progressBar.classList.add('bg-success');
-                    progressText.innerHTML = '<i class="fas fa-check-circle" style="color:#10B981;"></i> Данные загружены!';
-
-                    showStatus('success', 'Данные успешно загружены. Ниже показаны таблицы для сравнения.');
-                    document.getElementById('tablesContainer').style.display = 'block';
-
-                    document.getElementById('actsTable').innerHTML = `
-                    <table class="table table-sm table-bordered">
-                        <tr><th>Акт</th><th>Сумма</th></tr>
-                        <tr><td>Акт №1</td><td>1000</td></tr>
-                        <tr><td>Акт №2</td><td>2000</td></tr>
-                    </table>
-                `;
-                    document.getElementById('apiTable').innerHTML = `
-                    <table class="table table-sm table-bordered">
-                        <tr><th>Заказ</th><th>Медиаплан</th><th>Сумма</th></tr>
-                        <tr><td>Заказ А</td><td>МП1</td><td>1000</td></tr>
-                        <tr><td>Заказ Б</td><td>МП2</td><td>2000</td></tr>
-                    </table>
-                `;
-                }
-            }, 300);
+                    progressBar.classList.add('bg-danger');
+                    progressText.innerHTML = '<i class="fas fa-times-circle" style="color:#EF4444;"></i> Ошибка соединения';
+                    showStatus('error', 'Ошибка при загрузке файла: ' + error.message);
+                });
         }
 
         // Функция отображения статуса

@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $auth = new Auth();
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
-    
+
     if ($auth->login($username, $password)) {
         // После успешного входа перенаправляем на дашборд
         header('Location: ' . $base_path . '/dashboard');
@@ -64,7 +64,7 @@ switch ($path) {
         }
         require_once __DIR__ . '/templates/login.php';
         break;
-        
+
     case 'dashboard':
         // Проверяем авторизацию
         if (!isset($_SESSION['user_id'])) {
@@ -73,7 +73,7 @@ switch ($path) {
         }
         require_once __DIR__ . '/templates/dashboard.php';
         break;
-        
+
     case 'check':
         if (!isset($_SESSION['user_id'])) {
             header('Location: ' . $base_path . '/login');
@@ -81,11 +81,21 @@ switch ($path) {
         }
         require_once __DIR__ . '/templates/check.php';
         break;
-        
+
+    case 'compare':
+        if (!isset($_SESSION['user_id'])) {
+            header('Location: ' . $base_path . '/login');
+            exit;
+        }
+        require_once __DIR__ . '/templates/compare.php';
+        break;
+
     default:
         // Если путь не найден - 404
         header('HTTP/1.0 404 Not Found');
         echo '404 Not Found - Path: "' . $path . '"';
         break;
 }
+
+
 ?>
