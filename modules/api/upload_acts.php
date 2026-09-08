@@ -1,52 +1,27 @@
 <?php
-// Отключаем вывод ошибок в ответ
 error_reporting(0);
 ini_set('display_errors', 0);
 
-// Начинаем сессию
 session_start();
-
-// Устанавливаем заголовок JSON
 header('Content-Type: application/json; charset=utf-8');
 
-// Проверка авторизации
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'error' => 'Не авторизован']);
     exit;
 }
 
-// Проверяем, что файл загружен
 if (!isset($_FILES['actsFile']) || $_FILES['actsFile']['error'] !== UPLOAD_ERR_OK) {
     $error_msg = isset($_FILES['actsFile']) ? 'Ошибка загрузки: ' . $_FILES['actsFile']['error'] : 'Файл не передан';
     echo json_encode(['success' => false, 'error' => $error_msg]);
     exit;
 }
 
-// Проверяем наличие автозагрузчика
-$autoloadPaths = [
-    __DIR__ . '/../../vendor/autoload.php',
-    __DIR__ . '/../vendor/autoload.php',
-    __DIR__ . '/vendor/autoload.php'
-];
-
-$autoloadFound = false;
-foreach ($autoloadPaths as $path) {
-    if (file_exists($path)) {
-        require_once $path;
-        $autoloadFound = true;
-        break;
-    }
-}
-
-if (!$autoloadFound) {
+if (!file_exists(__DIR__ . '/../../vendor/autoload.php')) {
     echo json_encode(['success' => false, 'error' => 'Библиотека PhpSpreadsheet не установлена']);
     exit;
 }
 
-if (!class_exists('PhpOffice\PhpSpreadsheet\IOFactory')) {
-    echo json_encode(['success' => false, 'error' => 'Класс PhpSpreadsheet не найден']);
-    exit;
-}
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 $file = $_FILES['actsFile'];
 $file_ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
@@ -76,141 +51,200 @@ try {
     
     $headers = array_map('trim', $rows[0]);
     
-    // Список нужных столбцов с приоритетами
-    $requiredColumns = [
-        'Номер акта' => null,
-        'Дата акта' => null,
-        'Период оказания услуг по акту' => null,
-        'Id конечного договора' => null,
-        'Номер конечного договора' => null,
-        'Дата конечного договора' => null,
-        'ИНН заказчика КД' => null,
-        'Сумма без НДС' => null,
-        'Ставка НДС' => null,
-        'Сумма НДС' => null,
-        'Сумма с НДС' => null,
-        'ID пункта акта' => null,
-        'Общее число фактических показов' => null,
-        'Общее число показов по акту' => null,
-        'Общая сумма без НДС статистики' => null,
-        'Общая сумма НДС статистики' => null,
-        'Общая сумма с НДС статистики' => null
+    // ---- 1. Находим ВСЕ индексы всех нужных столбцов ----
+    // Сначала ищем все возможные совпадения для каждого поля
+    $allMatches = [];
+    $searchFields = [
+        'Номер акта',
+        'Дата акта',
+        'Период оказания услуг по акту',
+        'Номер конечного договора',
+        'Дата конечного договора',
+        'ИНН заказчика КД',
+        'Сумма без НДС',
+        'Ставка НДС',
+        'Сумма НДС',
+        'Сумма с НДС',
+        'ID пункта акта',
+        'Общее число фактических показов',
+        'Общее число показов по акту',
+        'Номер изначального договора',
+        'Дата заключения ИД',
     ];
     
-    // Ищем соответствие заголовков с учётом приоритетов
-    // Сначала ищем точные совпадения
-    foreach ($headers as $columnIndex => $header) {
+    foreach ($headers as $idx => $header) {
         $header = trim($header);
         if (empty($header)) continue;
-        
-        foreach ($requiredColumns as $key => &$value) {
-            if ($value === null && $header === $key) {
-                $value = (int)$columnIndex;
-                break;
-            }
-        }
-        unset($value);
-    }
-    
-    // Затем ищем частичные совпадения, но с учётом приоритетов
-    foreach ($headers as $columnIndex => $header) {
-        $header = trim($header);
-        if (empty($header)) continue;
-        
         $headerLower = mb_strtolower($header);
         
-        foreach ($requiredColumns as $key => &$value) {
-            if ($value !== null) continue; // Уже найдено точное совпадение
-            
-            $keyLower = mb_strtolower($key);
-            
-            // Проверяем частичное совпадение
-            if (strpos($headerLower, $keyLower) !== false || strpos($keyLower, $headerLower) !== false) {
-                // Дополнительная проверка для "Сумма НДС" и "Сумма с НДС"
-                // Они не должны совпадать с "Общая сумма НДС статистики" и "Общая сумма с НДС статистики"
-                if (($key === 'Сумма НДС' && strpos($headerLower, 'общая') !== false) ||
-                    ($key === 'Сумма с НДС' && strpos($headerLower, 'общая') !== false)) {
-                    continue;
+        foreach ($searchFields as $field) {
+            $fieldLower = mb_strtolower($field);
+            // Проверяем точное или частичное совпадение
+            if ($header === $field || strpos($headerLower, $fieldLower) !== false || strpos($fieldLower, $headerLower) !== false) {
+                if (!isset($allMatches[$field])) {
+                    $allMatches[$field] = [];
                 }
-                
-                // Для "Общая сумма НДС статистики" и "Общая сумма с НДС статистики" ищем точнее
-                if (($key === 'Общая сумма НДС статистики' && strpos($headerLower, 'общая') === false) ||
-                    ($key === 'Общая сумма с НДС статистики' && strpos($headerLower, 'общая') === false)) {
-                    continue;
-                }
-                
-                $value = (int)$columnIndex;
-                break;
+                $allMatches[$field][] = (int)$idx;
             }
         }
-        unset($value);
     }
     
-    // Проверяем, какие столбцы найдены
-    $foundColumns = array_filter($requiredColumns, function($v) { return $v !== null; });
+    // ---- 2. Определяем, какие индексы использовать ----
+    $fields = [
+        // Общие поля акта (первые)
+        'act' => [],
+        // Поля ИД (для каждой строки)
+        'id' => [],
+        // Статистические поля (последние)
+        'stat' => [],
+    ];
     
-    if (empty($foundColumns)) {
+    // Для общих полей берем ПЕРВЫЙ найденный индекс
+    $actFields = [
+        'Номер акта',
+        'Дата акта',
+        'Период оказания услуг по акту',
+        'Номер конечного договора',
+        'Дата конечного договора',
+        'ИНН заказчика КД',
+        'ID пункта акта',
+        'Общее число фактических показов',
+        'Общее число показов по акту',
+    ];
+    foreach ($actFields as $field) {
+        if (isset($allMatches[$field]) && !empty($allMatches[$field])) {
+            $fields['act'][$field] = min($allMatches[$field]); // берем первый (минимальный индекс)
+        } else {
+            $fields['act'][$field] = null;
+        }
+    }
+    
+    // Для полей ИД берем первый найденный
+    $idFields = [
+        'Номер изначального договора',
+        'Дата заключения ИД',
+    ];
+    foreach ($idFields as $field) {
+        if (isset($allMatches[$field]) && !empty($allMatches[$field])) {
+            $fields['id'][$field] = min($allMatches[$field]);
+        } else {
+            $fields['id'][$field] = null;
+        }
+    }
+    
+    // Для статистических полей берем ПОСЛЕДНИЙ найденный индекс
+    $statFields = [
+        'Сумма без НДС',
+        'Ставка НДС',
+        'Сумма НДС',
+        'Сумма с НДС',
+    ];
+    foreach ($statFields as $field) {
+        if (isset($allMatches[$field]) && !empty($allMatches[$field])) {
+            // Проверяем, что это НЕ первый индекс (если их несколько)
+            if (count($allMatches[$field]) > 1) {
+                $fields['stat'][$field] = max($allMatches[$field]); // берем последний (максимальный индекс)
+            } else {
+                // Если только один, пробуем найти по названию "Общая сумма ... статистики"
+                $statKey = 'Общая ' . strtolower($field) . ' статистики';
+                $found = false;
+                foreach ($allMatches as $key => $indexes) {
+                    if (strpos(strtolower($key), strtolower($field)) !== false && strpos(strtolower($key), 'статистики') !== false) {
+                        $fields['stat'][$field] = max($indexes);
+                        $found = true;
+                        break;
+                    }
+                }
+                if (!$found) {
+                    // Если не нашли, берем единственный (но это может быть неправильно)
+                    $fields['stat'][$field] = min($allMatches[$field]);
+                }
+            }
+        } else {
+            $fields['stat'][$field] = null;
+        }
+    }
+    
+    // ---- 3. Проверяем наличие обязательных полей ----
+    $required = ['Номер акта'];
+    $missing = [];
+    foreach ($required as $field) {
+        if (!isset($fields['act'][$field]) || $fields['act'][$field] === null) {
+            $missing[] = $field;
+        }
+    }
+    
+    if (!empty($missing)) {
         echo json_encode([
             'success' => false,
-            'error' => 'Не найдено ни одного подходящего столбца. Проверьте названия столбцов в файле.',
-            'headers' => $headers
+            'error' => 'Не найдены обязательные столбцы: ' . implode(', ', $missing)
         ]);
         exit;
     }
     
-    // Функция для проверки, является ли значение датой Excel
-    function isExcelDate($value) {
-        if (!is_numeric($value) || $value <= 0) return false;
-        return $value >= 1 && $value <= 2958465;
-    }
-    
-    // Парсим данные
+    // ---- 4. Парсим данные ----
     $data = [];
     for ($i = 1; $i < count($rows); $i++) {
         $row = $rows[$i];
         $rowData = [];
         
-        foreach ($requiredColumns as $key => $columnIndex) {
-            if (is_int($columnIndex) && $columnIndex >= 0 && isset($row[$columnIndex])) {
-                $value = $row[$columnIndex];
-                
-                // Проверяем, нужно ли обрабатывать как дату
-                $isDateColumn = strpos($key, 'Дата') !== false || strpos($key, 'Период') !== false;
-                
-                // Проверяем, является ли значение датой Excel
-                if (is_numeric($value) && isExcelDate($value) && $isDateColumn) {
+        // Общие поля акта
+        foreach ($fields['act'] as $key => $idx) {
+            if ($idx !== null && isset($row[$idx])) {
+                $value = $row[$idx];
+                // Обработка дат
+                if (strpos($key, 'Дата') !== false && is_numeric($value) && $value > 0) {
                     try {
                         $dateTime = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($value);
                         if ($dateTime) {
                             $value = $dateTime->format('d.m.Y');
                         }
-                    } catch (Exception $e) {
-                        // Не дата, оставляем как есть
-                    }
+                    } catch (Exception $e) {}
                 }
-                
-                // Если это числовое значение и НЕ дата
-                if (is_numeric($value) && !$isDateColumn) {
-                    // Проверяем, является ли это ID, номером или ИНН
-                    $isIdColumn = strpos($key, 'ID') !== false || 
-                                  strpos($key, 'Id') !== false || 
-                                  strpos($key, 'Номер') !== false || 
-                                  strpos($key, 'ИНН') !== false ||
-                                  strpos($key, 'показов') !== false;
-                    
-                    if ($isIdColumn) {
-                        $value = number_format($value, 0, '.', '');
-                    } else {
-                        $value = number_format($value, 2, '.', ' ');
-                    }
-                }
-                
                 $rowData[$key] = $value;
             } else {
                 $rowData[$key] = '';
             }
         }
         
+        // Поля ИД
+        foreach ($fields['id'] as $key => $idx) {
+            if ($idx !== null && isset($row[$idx])) {
+                $value = $row[$idx];
+                // Обработка дат
+                if (strpos($key, 'Дата') !== false && is_numeric($value) && $value > 0) {
+                    try {
+                        $dateTime = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($value);
+                        if ($dateTime) {
+                            $value = $dateTime->format('d.m.Y');
+                        }
+                    } catch (Exception $e) {}
+                }
+                $rowData[$key] = $value;
+            } else {
+                $rowData[$key] = '';
+            }
+        }
+        
+        // Статистические поля (суммы по пункту)
+        foreach ($fields['stat'] as $key => $idx) {
+            if ($idx !== null && isset($row[$idx])) {
+                $value = $row[$idx];
+                if (is_numeric($value) && !is_int($value)) {
+                    $value = number_format($value, 2, '.', ' ');
+                } elseif (is_numeric($value) && is_int($value)) {
+                    $value = number_format($value, 0, '.', ' ');
+                }
+                // Сохраняем как "Общая сумма ... статистики" для совместимости с compare.php
+                $statKey = 'Общая ' . $key . ' статистики';
+                $rowData[$statKey] = $value;
+            } else {
+                $statKey = 'Общая ' . $key . ' статистики';
+                $rowData[$statKey] = '';
+            }
+        }
+        
+        // Проверяем, что строка не пустая (есть номер акта)
         if (!empty($rowData['Номер акта'])) {
             $data[] = $rowData;
         }
@@ -219,9 +253,7 @@ try {
     if (empty($data)) {
         echo json_encode([
             'success' => false,
-            'error' => 'Не найдено данных. Проверьте, что в файле есть строки с заполненным столбцом "Номер акта"',
-            'found_columns' => array_keys($foundColumns),
-            'total_rows' => count($rows)
+            'error' => 'Не найдено данных. Проверьте, что в файле есть строки с заполненным столбцом "Номер акта"'
         ]);
         exit;
     }
@@ -232,7 +264,6 @@ try {
     echo json_encode([
         'success' => true,
         'count' => count($data),
-        'found_columns' => array_keys($foundColumns),
         'message' => 'Файл успешно обработан. Найдено записей: ' . count($data)
     ]);
     
