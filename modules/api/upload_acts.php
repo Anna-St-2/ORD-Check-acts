@@ -51,56 +51,27 @@ try {
     
     $headers = array_map('trim', $rows[0]);
     
-    // ---- 1. Находим ВСЕ индексы всех нужных столбцов ----
-    // Сначала ищем все возможные совпадения для каждого поля
-    $allMatches = [];
-    $searchFields = [
-        'Номер акта',
-        'Дата акта',
-        'Период оказания услуг по акту',
-        'Номер конечного договора',
-        'Дата конечного договора',
-        'ИНН заказчика КД',
-        'Сумма без НДС',
-        'Ставка НДС',
-        'Сумма НДС',
-        'Сумма с НДС',
-        'ID пункта акта',
-        'Общее число фактических показов',
-        'Общее число показов по акту',
-        'Номер изначального договора',
-        'Дата заключения ИД',
-    ];
+    // ============================================================
+    // ШАГ 1. Находим все вхождения столбцов с одинаковыми названиями
+    // ============================================================
     
+    // Собираем все индексы для каждого названия
+    $headerIndexes = [];
     foreach ($headers as $idx => $header) {
         $header = trim($header);
         if (empty($header)) continue;
-        $headerLower = mb_strtolower($header);
-        
-        foreach ($searchFields as $field) {
-            $fieldLower = mb_strtolower($field);
-            // Проверяем точное или частичное совпадение
-            if ($header === $field || strpos($headerLower, $fieldLower) !== false || strpos($fieldLower, $headerLower) !== false) {
-                if (!isset($allMatches[$field])) {
-                    $allMatches[$field] = [];
-                }
-                $allMatches[$field][] = (int)$idx;
-            }
+        if (!isset($headerIndexes[$header])) {
+            $headerIndexes[$header] = [];
         }
+        $headerIndexes[$header][] = $idx;
     }
     
-    // ---- 2. Определяем, какие индексы использовать ----
-    $fields = [
-        // Общие поля акта (первые)
-        'act' => [],
-        // Поля ИД (для каждой строки)
-        'id' => [],
-        // Статистические поля (последние)
-        'stat' => [],
-    ];
+    // ============================================================
+    // ШАГ 2. Определяем индексы нужных столбцов
+    // ============================================================
     
-    // Для общих полей берем ПЕРВЫЙ найденный индекс
-    $actFields = [
+    // Уникальные столбцы (только одно вхождение)
+    $uniqueColumns = [
         'Номер акта',
         'Дата акта',
         'Период оказания услуг по акту',
@@ -110,88 +81,94 @@ try {
         'ID пункта акта',
         'Общее число фактических показов',
         'Общее число показов по акту',
-    ];
-    foreach ($actFields as $field) {
-        if (isset($allMatches[$field]) && !empty($allMatches[$field])) {
-            $fields['act'][$field] = min($allMatches[$field]); // берем первый (минимальный индекс)
-        } else {
-            $fields['act'][$field] = null;
-        }
-    }
-    
-    // Для полей ИД берем первый найденный
-    $idFields = [
         'Номер изначального договора',
         'Дата заключения ИД',
+        'Общая сумма без НДС статистики',
+        'Общая сумма НДС статистики',
+        'Общая сумма с НДС статистики',
     ];
-    foreach ($idFields as $field) {
-        if (isset($allMatches[$field]) && !empty($allMatches[$field])) {
-            $fields['id'][$field] = min($allMatches[$field]);
+    
+    $columnIndex = []; // [название] => индекс
+    
+    foreach ($uniqueColumns as $col) {
+        if (isset($headerIndexes[$col]) && !empty($headerIndexes[$col])) {
+            $columnIndex[$col] = (int)$headerIndexes[$col][0]; // первый
         } else {
-            $fields['id'][$field] = null;
+            // Пробуем частичное совпадение
+            foreach ($headers as $idx => $header) {
+                $header = trim($header);
+                if (empty($header)) continue;
+                if (mb_stripos($header, $col) !== false || mb_stripos($col, $header) !== false) {
+                    $columnIndex[$col] = (int)$idx;
+                    break;
+                }
+            }
         }
     }
     
-    // Для статистических полей берем ПОСЛЕДНИЙ найденный индекс
-    $statFields = [
+    // Дублирующиеся столбцы (два вхождения) — Сумма без НДС, Ставка НДС, Сумма НДС, Сумма с НДС
+    $duplicatedColumns = [
         'Сумма без НДС',
         'Ставка НДС',
         'Сумма НДС',
         'Сумма с НДС',
     ];
-    foreach ($statFields as $field) {
-        if (isset($allMatches[$field]) && !empty($allMatches[$field])) {
-            // Проверяем, что это НЕ первый индекс (если их несколько)
-            if (count($allMatches[$field]) > 1) {
-                $fields['stat'][$field] = max($allMatches[$field]); // берем последний (максимальный индекс)
-            } else {
-                // Если только один, пробуем найти по названию "Общая сумма ... статистики"
-                $statKey = 'Общая ' . strtolower($field) . ' статистики';
-                $found = false;
-                foreach ($allMatches as $key => $indexes) {
-                    if (strpos(strtolower($key), strtolower($field)) !== false && strpos(strtolower($key), 'статистики') !== false) {
-                        $fields['stat'][$field] = max($indexes);
-                        $found = true;
-                        break;
-                    }
-                }
-                if (!$found) {
-                    // Если не нашли, берем единственный (но это может быть неправильно)
-                    $fields['stat'][$field] = min($allMatches[$field]);
+    
+    // Для каждого дублирующегося столбца берем первый и второй индекс
+    foreach ($duplicatedColumns as $col) {
+        if (isset($headerIndexes[$col]) && count($headerIndexes[$col]) >= 2) {
+            // Есть два вхождения
+            $indexes = $headerIndexes[$col];
+            sort($indexes);
+            $columnIndex[$col . ' (акт)'] = $indexes[0];      // первый — по акту
+            $columnIndex[$col . ' (пункт)'] = $indexes[1];    // второй — по пункту
+        } elseif (isset($headerIndexes[$col]) && count($headerIndexes[$col]) === 1) {
+            // Только одно вхождение — используем его и для акта, и для пункта
+            $columnIndex[$col . ' (акт)'] = $headerIndexes[$col][0];
+            $columnIndex[$col . ' (пункт)'] = $headerIndexes[$col][0];
+        } else {
+            // Частичный поиск
+            $matches = [];
+            foreach ($headers as $idx => $header) {
+                $header = trim($header);
+                if (empty($header)) continue;
+                if (mb_stripos($header, $col) !== false) {
+                    $matches[] = $idx;
                 }
             }
-        } else {
-            $fields['stat'][$field] = null;
+            if (count($matches) >= 2) {
+                $columnIndex[$col . ' (акт)'] = $matches[0];
+                $columnIndex[$col . ' (пункт)'] = $matches[1];
+            } elseif (count($matches) === 1) {
+                $columnIndex[$col . ' (акт)'] = $matches[0];
+                $columnIndex[$col . ' (пункт)'] = $matches[0];
+            }
         }
     }
     
-    // ---- 3. Проверяем наличие обязательных полей ----
-    $required = ['Номер акта'];
-    $missing = [];
-    foreach ($required as $field) {
-        if (!isset($fields['act'][$field]) || $fields['act'][$field] === null) {
-            $missing[] = $field;
-        }
-    }
-    
-    if (!empty($missing)) {
+    // Проверяем обязательные столбцы
+    if (!isset($columnIndex['Номер акта'])) {
         echo json_encode([
             'success' => false,
-            'error' => 'Не найдены обязательные столбцы: ' . implode(', ', $missing)
+            'error' => 'Не найден столбец "Номер акта". Проверьте структуру файла.',
+            'headers' => $headers
         ]);
         exit;
     }
     
-    // ---- 4. Парсим данные ----
+    // ============================================================
+    // ШАГ 3. Парсим данные
+    // ============================================================
+    
     $data = [];
     for ($i = 1; $i < count($rows); $i++) {
         $row = $rows[$i];
         $rowData = [];
         
-        // Общие поля акта
-        foreach ($fields['act'] as $key => $idx) {
+        foreach ($columnIndex as $key => $idx) {
             if ($idx !== null && isset($row[$idx])) {
                 $value = $row[$idx];
+                
                 // Обработка дат
                 if (strpos($key, 'Дата') !== false && is_numeric($value) && $value > 0) {
                     try {
@@ -201,50 +178,22 @@ try {
                         }
                     } catch (Exception $e) {}
                 }
+                
+                // Форматирование чисел только для сумм и показов
+                $isNumericField = (strpos($key, 'Сумма') !== false || strpos($key, 'число') !== false);
+                if ($isNumericField && is_numeric($value) && !is_int($value)) {
+                    $value = number_format((float)$value, 2, '.', ' ');
+                } elseif ($isNumericField && is_numeric($value) && is_int($value)) {
+                    $value = number_format((float)$value, 0, '.', ' ');
+                }
+                
                 $rowData[$key] = $value;
             } else {
                 $rowData[$key] = '';
             }
         }
         
-        // Поля ИД
-        foreach ($fields['id'] as $key => $idx) {
-            if ($idx !== null && isset($row[$idx])) {
-                $value = $row[$idx];
-                // Обработка дат
-                if (strpos($key, 'Дата') !== false && is_numeric($value) && $value > 0) {
-                    try {
-                        $dateTime = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($value);
-                        if ($dateTime) {
-                            $value = $dateTime->format('d.m.Y');
-                        }
-                    } catch (Exception $e) {}
-                }
-                $rowData[$key] = $value;
-            } else {
-                $rowData[$key] = '';
-            }
-        }
-        
-        // Статистические поля (суммы по пункту)
-        foreach ($fields['stat'] as $key => $idx) {
-            if ($idx !== null && isset($row[$idx])) {
-                $value = $row[$idx];
-                if (is_numeric($value) && !is_int($value)) {
-                    $value = number_format($value, 2, '.', ' ');
-                } elseif (is_numeric($value) && is_int($value)) {
-                    $value = number_format($value, 0, '.', ' ');
-                }
-                // Сохраняем как "Общая сумма ... статистики" для совместимости с compare.php
-                $statKey = 'Общая ' . $key . ' статистики';
-                $rowData[$statKey] = $value;
-            } else {
-                $statKey = 'Общая ' . $key . ' статистики';
-                $rowData[$statKey] = '';
-            }
-        }
-        
-        // Проверяем, что строка не пустая (есть номер акта)
+        // Проверяем, что строка не пустая
         if (!empty($rowData['Номер акта'])) {
             $data[] = $rowData;
         }
@@ -253,7 +202,7 @@ try {
     if (empty($data)) {
         echo json_encode([
             'success' => false,
-            'error' => 'Не найдено данных. Проверьте, что в файле есть строки с заполненным столбцом "Номер акта"'
+            'error' => 'Не найдено данных'
         ]);
         exit;
     }
@@ -264,6 +213,7 @@ try {
     echo json_encode([
         'success' => true,
         'count' => count($data),
+        'columns_found' => $columnIndex,
         'message' => 'Файл успешно обработан. Найдено записей: ' . count($data)
     ]);
     

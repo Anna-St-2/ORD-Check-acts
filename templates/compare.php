@@ -1,4 +1,4 @@
-<?php
+<?php 
 // Проверка авторизации
 if (!isset($_SESSION['user_id'])) {
     header('Location: /ORD-Check-acts/login');
@@ -17,32 +17,31 @@ foreach ($actsData as $row) {
     if (empty($actNumber)) {
         continue;
     }
-
+    
     if (!isset($groupedData[$actNumber])) {
         $groupedData[$actNumber] = [
-            'items' => [] // все строки для этого акта
+            'items' => [],
+            'contracts' => []
         ];
     }
-
+    
     $groupedData[$actNumber]['items'][] = $row;
+    
+    // Собираем уникальные ИД
+    $idNumber = $row['Номер изначального договора'] ?? '';
+    if (!empty($idNumber) && !in_array($idNumber, $groupedData[$actNumber]['contracts'])) {
+        $groupedData[$actNumber]['contracts'][] = $idNumber;
+    }
 }
 
-// Для каждого акта определяем количество уникальных ИД
+// Подсчитываем количество ИД для каждого акта
 foreach ($groupedData as $actNumber => &$group) {
-    $uniqueIds = [];
-    foreach ($group['items'] as $row) {
-        $id = $row['Номер изначального договора'] ?? '';
-        if (!empty($id) && !in_array($id, $uniqueIds)) {
-            $uniqueIds[] = $id;
-        }
-    }
-    $group['contract_count'] = count($uniqueIds);
+    $group['contract_count'] = count($group['contracts']);
 }
 unset($group);
 ?>
 <!DOCTYPE html>
 <html lang="ru">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -51,7 +50,6 @@ unset($group);
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/ORD-Check-acts/assets/css/style.css">
 </head>
-
 <body>
     <div class="dashboard-wrapper">
         <!-- Боковая панель -->
@@ -120,8 +118,8 @@ unset($group);
                 <div class="compare-header">
                     <h2><i class="fas fa-table" style="color:var(--primary-color);"></i> Сравнение данных</h2>
                     <span class="badge-info">
-                        <i class="far fa-calendar-alt"></i>
-                        <?= date('d.m.Y', strtotime($_GET['start'] ?? date('Y-m-01'))) ?> —
+                        <i class="far fa-calendar-alt"></i> 
+                        <?= date('d.m.Y', strtotime($_GET['start'] ?? date('Y-m-01'))) ?> — 
                         <?= date('d.m.Y', strtotime($_GET['end'] ?? date('Y-m-d'))) ?>
                         <?php if (!empty($uploadedFileName)): ?>
                             <span style="margin-left:12px;padding-left:12px;border-left:1px solid var(--gray-300);">
@@ -133,7 +131,7 @@ unset($group);
 
                 <!-- Две колонки -->
                 <div class="row g-4">
-                    <!-- Левая колонка: Акты (с группировкой) -->
+                    <!-- ===== ЛЕВАЯ КОЛОНКА: Данные из файла ===== -->
                     <div class="col-md-6">
                         <div class="card" style="margin-top:0;">
                             <div class="card-header" style="background:var(--gray-50);">
@@ -160,146 +158,173 @@ unset($group);
                                                 <th style="min-width:100px;text-align:right;">Сумма НДС</th>
                                                 <th style="min-width:110px;text-align:right;">Сумма с НДС</th>
                                                 <th style="min-width:80px;">ID пункта</th>
-                                                <th style="min-width:110px;text-align:right;">Общее число фактич.
-                                                    показов</th>
-                                                <th style="min-width:110px;text-align:right;">Общее число показов по
-                                                    акту</th>
+                                                <th style="min-width:120px;text-align:right;">Общее число фактич. показов</th>
+                                                <th style="min-width:120px;text-align:right;">Общее число показов по акту</th>
                                                 <th style="min-width:100px;">Номер ИД</th>
                                                 <th style="min-width:100px;">Дата ИД</th>
-                                                <th style="min-width:110px;text-align:right;">Сумма без НДС (стат.)</th>
-                                                <th style="min-width:100px;text-align:right;">Сумма НДС (стат.)</th>
-                                                <th style="min-width:110px;text-align:right;">Сумма с НДС (стат.)</th>
+                                                <th style="min-width:110px;text-align:right;">Сумма без НДС (пункт)</th>
+                                                <th style="min-width:80px;">Ставка НДС (пункт)</th>
+                                                <th style="min-width:110px;text-align:right;">Сумма НДС (пункт)</th>
+                                                <th style="min-width:110px;text-align:right;">Сумма с НДС (пункт)</th>
+                                                <th style="min-width:130px;text-align:right;">Общая сумма без НДС статистики</th>
+                                                <th style="min-width:120px;text-align:right;">Общая сумма НДС статистики</th>
+                                                <th style="min-width:130px;text-align:right;">Общая сумма с НДС статистики</th>
                                                 <th style="min-width:70px;text-align:center;">ИД</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <?php if (count($groupedData) > 0): ?>
                                                 <?php foreach ($groupedData as $actNumber => $group): ?>
-                                                    <?php
-                                                    $firstRow = $group['items'][0] ?? [];
+                                                    <?php 
                                                     $contractCount = $group['contract_count'] ?? 1;
                                                     $isFirst = true;
                                                     ?>
-
+                                                    
                                                     <?php foreach ($group['items'] as $index => $row): ?>
                                                         <tr class="<?= $isFirst ? 'row-group-first' : 'row-group-child' ?>">
-                                                            <!-- Номер акта (только в первой строке) -->
+                                                            
+                                                            <!-- ===== ОБЩИЕ ДАННЫЕ АКТА (только в первой строке) ===== -->
+                                                            
+                                                            <!-- Номер акта -->
                                                             <td>
                                                                 <?php if ($isFirst): ?>
                                                                     <strong><?= htmlspecialchars($actNumber) ?></strong>
-                                                                    <?php if ($contractCount > 1): ?>
-                                                                        <span class="badge-contract-count"><?= $contractCount ?> ИД</span>
-                                                                    <?php endif; ?>
                                                                 <?php endif; ?>
                                                             </td>
-
-                                                            <!-- Дата акта (только в первой строке) -->
+                                                            
+                                                            <!-- Дата акта -->
                                                             <td>
                                                                 <?php if ($isFirst): ?>
                                                                     <?= htmlspecialchars($row['Дата акта'] ?? '') ?>
                                                                 <?php endif; ?>
                                                             </td>
-
-                                                            <!-- Период оказания (только в первой строке) -->
+                                                            
+                                                            <!-- Период оказания -->
                                                             <td>
                                                                 <?php if ($isFirst): ?>
                                                                     <?= htmlspecialchars($row['Период оказания услуг по акту'] ?? '') ?>
                                                                 <?php endif; ?>
                                                             </td>
-
-                                                            <!-- Номер ДД (только в первой строке) -->
+                                                            
+                                                            <!-- Номер ДД -->
                                                             <td>
                                                                 <?php if ($isFirst): ?>
                                                                     <?= htmlspecialchars($row['Номер конечного договора'] ?? '') ?>
                                                                 <?php endif; ?>
                                                             </td>
-
-                                                            <!-- Дата ДД (только в первой строке) -->
+                                                            
+                                                            <!-- Дата ДД -->
                                                             <td>
                                                                 <?php if ($isFirst): ?>
                                                                     <?= htmlspecialchars($row['Дата конечного договора'] ?? '') ?>
                                                                 <?php endif; ?>
                                                             </td>
-
-                                                            <!-- ИНН заказчика (только в первой строке) -->
+                                                            
+                                                            <!-- ИНН заказчика -->
                                                             <td>
                                                                 <?php if ($isFirst): ?>
                                                                     <?= htmlspecialchars($row['ИНН заказчика КД'] ?? '') ?>
                                                                 <?php endif; ?>
                                                             </td>
-
-                                                            <!-- Сумма без НДС (общая, только в первой строке) -->
+                                                            
+                                                            <!-- Сумма без НДС (общая по акту) -->
                                                             <td style="text-align:right;">
                                                                 <?php if ($isFirst): ?>
-                                                                    <?= htmlspecialchars($row['Сумма без НДС'] ?? '') ?>
+                                                                    <?= htmlspecialchars($row['Сумма без НДС (акт)'] ?? '') ?>
                                                                 <?php endif; ?>
                                                             </td>
-
-                                                            <!-- Ставка НДС (общая, только в первой строке) -->
+                                                            
+                                                            <!-- Ставка НДС (общая) -->
                                                             <td>
                                                                 <?php if ($isFirst): ?>
-                                                                    <?= htmlspecialchars($row['Ставка НДС'] ?? '') ?>
+                                                                    <?= htmlspecialchars($row['Ставка НДС (акт)'] ?? '') ?>
                                                                 <?php endif; ?>
                                                             </td>
-
-                                                            <!-- Сумма НДС (общая, только в первой строке) -->
+                                                            
+                                                            <!-- Сумма НДС (общая) -->
                                                             <td style="text-align:right;">
                                                                 <?php if ($isFirst): ?>
-                                                                    <?= htmlspecialchars($row['Сумма НДС'] ?? '') ?>
+                                                                    <?= htmlspecialchars($row['Сумма НДС (акт)'] ?? '') ?>
                                                                 <?php endif; ?>
                                                             </td>
-
-                                                            <!-- Сумма с НДС (общая, только в первой строке) -->
+                                                            
+                                                            <!-- Сумма с НДС (общая) -->
                                                             <td style="text-align:right;">
                                                                 <?php if ($isFirst): ?>
-                                                                    <?= htmlspecialchars($row['Сумма с НДС'] ?? '') ?>
+                                                                    <?= htmlspecialchars($row['Сумма с НДС (акт)'] ?? '') ?>
                                                                 <?php endif; ?>
                                                             </td>
-
-                                                            <!-- ID пункта акта (только в первой строке) -->
+                                                            
+                                                            <!-- ID пункта акта -->
                                                             <td>
                                                                 <?php if ($isFirst): ?>
                                                                     <?= htmlspecialchars($row['ID пункта акта'] ?? '') ?>
                                                                 <?php endif; ?>
                                                             </td>
-
-                                                            <!-- Общее число фактических показов (только в первой строке) -->
+                                                            
+                                                            <!-- Общее число фактических показов -->
                                                             <td style="text-align:right;">
                                                                 <?php if ($isFirst): ?>
                                                                     <?= htmlspecialchars($row['Общее число фактических показов'] ?? '') ?>
                                                                 <?php endif; ?>
                                                             </td>
-
-                                                            <!-- Общее число показов по акту (только в первой строке) -->
+                                                            
+                                                            <!-- Общее число показов по акту -->
                                                             <td style="text-align:right;">
                                                                 <?php if ($isFirst): ?>
                                                                     <?= htmlspecialchars($row['Общее число показов по акту'] ?? '') ?>
                                                                 <?php endif; ?>
                                                             </td>
-
-                                                            <!-- Номер ИД (для каждой строки) -->
+                                                            
+                                                            <!-- ===== ДАННЫЕ ПУНКТА АКТА (в каждой строке) ===== -->
+                                                            
+                                                            <!-- Номер ИД -->
                                                             <td>
                                                                 <?= htmlspecialchars($row['Номер изначального договора'] ?? '') ?>
                                                             </td>
-
-                                                            <!-- Дата ИД (для каждой строки) -->
+                                                            
+                                                            <!-- Дата ИД -->
                                                             <td>
                                                                 <?= htmlspecialchars($row['Дата заключения ИД'] ?? '') ?>
                                                             </td>
-
-                                                            <!-- Сумма без НДС (стат.) -->
+                                                            
+                                                            <!-- Сумма без НДС (пункт) -->
+                                                            <td style="text-align:right;">
+                                                                <?= htmlspecialchars($row['Сумма без НДС (пункт)'] ?? '') ?>
+                                                            </td>
+                                                            
+                                                            <!-- Ставка НДС (пункт) -->
+                                                            <td>
+                                                                <?= htmlspecialchars($row['Ставка НДС (пункт)'] ?? '') ?>
+                                                            </td>
+                                                            
+                                                            <!-- Сумма НДС (пункт) -->
+                                                            <td style="text-align:right;">
+                                                                <?= htmlspecialchars($row['Сумма НДС (пункт)'] ?? '') ?>
+                                                            </td>
+                                                            
+                                                            <!-- Сумма с НДС (пункт) -->
+                                                            <td style="text-align:right;">
+                                                                <?= htmlspecialchars($row['Сумма с НДС (пункт)'] ?? '') ?>
+                                                            </td>
+                                                            
+                                                            <!-- ===== СТАТИСТИКА (в каждой строке) ===== -->
+                                                            
+                                                            <!-- Общая сумма без НДС статистики -->
                                                             <td style="text-align:right;">
                                                                 <?= htmlspecialchars($row['Общая сумма без НДС статистики'] ?? '') ?>
                                                             </td>
-                                                            <!-- Сумма НДС (стат.) -->
+                                                            
+                                                            <!-- Общая сумма НДС статистики -->
                                                             <td style="text-align:right;">
                                                                 <?= htmlspecialchars($row['Общая сумма НДС статистики'] ?? '') ?>
                                                             </td>
-                                                            <!-- Сумма с НДС (стат.) -->
+                                                            
+                                                            <!-- Общая сумма с НДС статистики -->
                                                             <td style="text-align:right;">
                                                                 <?= htmlspecialchars($row['Общая сумма с НДС статистики'] ?? '') ?>
                                                             </td>
-
+                                                            
                                                             <!-- Количество ИД (только в первой строке) -->
                                                             <td style="text-align:center;">
                                                                 <?php if ($isFirst): ?>
@@ -314,7 +339,7 @@ unset($group);
                                                 <?php endforeach; ?>
                                             <?php else: ?>
                                                 <tr>
-                                                    <td colspan="19" class="table-empty">
+                                                    <td colspan="23" class="table-empty">
                                                         <i class="fas fa-inbox"></i>
                                                         Нет данных для отображения
                                                     </td>
@@ -327,14 +352,13 @@ unset($group);
                         </div>
                     </div>
 
-                    <!-- Правая колонка: API (заглушка) -->
+                    <!-- ===== ПРАВАЯ КОЛОНКА: Данные из API (заглушка) ===== -->
                     <div class="col-md-6">
                         <div class="card" style="margin-top:0;">
                             <div class="card-header" style="background:var(--gray-50);">
                                 <div class="col-header">
-                                    <i class="fas fa-database"></i> Данные из API (Заказы + Медиапланы)
-                                    <span class="badge bg-secondary"
-                                        style="font-size:12px;margin-left:8px;">ожидание</span>
+                                    <i class="fas fa-database"></i> Данные из API
+                                    <span class="badge bg-secondary" style="font-size:12px;margin-left:8px;">ожидание</span>
                                 </div>
                             </div>
                             <div class="card-body" style="padding:12px;">
@@ -357,15 +381,19 @@ unset($group);
                                                 <th style="text-align:right;">Общее число показов по акту</th>
                                                 <th>Номер ИД</th>
                                                 <th>Дата ИД</th>
-                                                <th style="text-align:right;">Сумма без НДС (стат.)</th>
-                                                <th style="text-align:right;">Сумма НДС (стат.)</th>
-                                                <th style="text-align:right;">Сумма с НДС (стат.)</th>
+                                                <th style="text-align:right;">Сумма без НДС (пункт)</th>
+                                                <th>Ставка НДС (пункт)</th>
+                                                <th style="text-align:right;">Сумма НДС (пункт)</th>
+                                                <th style="text-align:right;">Сумма с НДС (пункт)</th>
+                                                <th style="text-align:right;">Общая сумма без НДС статистики</th>
+                                                <th style="text-align:right;">Общая сумма НДС статистики</th>
+                                                <th style="text-align:right;">Общая сумма с НДС статистики</th>
                                                 <th style="text-align:center;">ИД</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr>
-                                                <td colspan="19" class="table-empty">
+                                                <td colspan="23" class="table-empty">
                                                     <i class="fas fa-cloud-upload-alt"></i>
                                                     Данные из API будут загружены позже
                                                 </td>
@@ -380,8 +408,7 @@ unset($group);
 
                 <!-- Кнопка для возврата -->
                 <div class="mt-4">
-                    <a href="/ORD-Check-acts/dashboard" class="btn-primary"
-                        style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;">
+                    <a href="/ORD-Check-acts/dashboard" class="btn-primary" style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;">
                         <i class="fas fa-arrow-left"></i> На главную
                     </a>
                 </div>
@@ -396,5 +423,4 @@ unset($group);
     </script>
     <script src="/ORD-Check-acts/assets/js/app.js"></script>
 </body>
-
 </html>
