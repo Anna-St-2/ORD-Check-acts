@@ -8,7 +8,7 @@ $dotenv->load();
 return [
     'base_url' => $_ENV['API_BASE_URL'] ?? 'https://app.monkeycopilot.ru/api/v1',
     'api_key' => $_ENV['API_KEY'] ?? '',
-    'timeout' => 30,
+    'timeout' => 120,
     'retry_attempts' => 3,
     'retry_delay' => 5,
 ];

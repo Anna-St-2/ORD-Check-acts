@@ -421,15 +421,47 @@ if (!isset($_SESSION['user_id'])) {
                             progressBar.classList.remove('progress-bar-animated');
                             progressBar.classList.add('bg-success');
 
-                            setTimeout(function () {
-                                const params = new URLSearchParams({
-                                    start: start,
-                                    end: end,
-                                    units: selectedUnits.join(','),
-                                    file: encodeURIComponent(fileInput.files[0].name)
+                            // ===== ДОБАВЛЯЕМ ВЫЗОВ API =====
+                            progressText.innerHTML += '<br><i class="fas fa-spinner fa-spin"></i> Получаем данные из API...';
+
+                            fetch('modules/api/fetch_api_data.php?dateFrom=' + start + '&dateTo=' + end)
+                                .then(r => r.json())
+                                .then(apiData => {
+                                    console.log('Ответ API:', apiData);
+                                    if (apiData.success) {
+                                        progressText.innerHTML = '<i class="fas fa-check-circle" style="color:#10B981;"></i> Готово! Файл: ' + data.count + ', API: ' + apiData.count;
+                                    } else {
+                                        progressText.innerHTML += '<br><span style="color:#EF4444;">Ошибка API: ' + (apiData.error || 'неизвестная') + '</span>';
+                                    }
+
+                                    // Редирект (вне зависимости от результата API)
+                                    setTimeout(function () {
+                                        const params = new URLSearchParams({
+                                            start: start,
+                                            end: end,
+                                            units: selectedUnits.join(','),
+                                            file: encodeURIComponent(fileInput.files[0].name)
+                                        });
+                                        window.location.href = '/ORD-Check-acts/compare?' + params.toString();
+                                    }, 1500);
+                                })
+                                .catch(err => {
+                                    console.error('API fetch error:', err);
+                                    progressText.innerHTML += '<br><span style="color:#EF4444;">Ошибка соединения с API</span>';
+
+                                    // Редирект даже если API упал
+                                    setTimeout(function () {
+                                        const params = new URLSearchParams({
+                                            start: start,
+                                            end: end,
+                                            units: selectedUnits.join(','),
+                                            file: encodeURIComponent(fileInput.files[0].name)
+                                        });
+                                        window.location.href = '/ORD-Check-acts/compare?' + params.toString();
+                                    }, 1500);
                                 });
-                                window.location.href = '/ORD-Check-acts/compare?' + params.toString();
-                            }, 1000);
+                            // ===== КОНЕЦ ВЫЗОВА API =====
+
                         } else {
                             progressBar.classList.remove('progress-bar-animated');
                             progressBar.classList.add('bg-danger');

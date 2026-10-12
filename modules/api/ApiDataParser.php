@@ -1,148 +1,137 @@
 <?php
 /**
- * Класс для парсинга и преобразования данных из API
- * в формат, совместимый с таблицей сравнения
+ * Класс для преобразования данных из API в строки таблицы
  */
-class ApiDataParser {
-    
+class ApiDataParser
+{
+
     /**
-     * Преобразует данные из API в формат для таблицы
-     * 
-     * @param array $order Данные заказа из /orders
-     * @param array $legalEntity Данные юрлица из /legal-entities
-     * @param array $mediaplans Данные медиапланов из /mediaplans
-     * @return array Подготовленная строка для таблицы
+     * Преобразует данные заказа в строку для правой таблицы
      */
-    public function parseOrderData($order, $legalEntity, $mediaplans) {
-        // 1. Номер акта
-        $actNumber = $order['orderNumber'] ?? '';
-        
-        // 2. Дата акта (reportingDate)
-        $actDate = $order['reportingDate'] ?? '';
-        if ($actDate) {
-            $actDate = date('d.m.Y', strtotime($actDate));
-        }
-        
-        // 3. Период оказания
-        $startDate = $order['startDate'] ?? '';
-        $endDate = $order['endDate'] ?? '';
-        $period = '';
-        if ($startDate && $endDate) {
-            $period = date('d.m.Y', strtotime($startDate)) . ' — ' . date('d.m.Y', strtotime($endDate));
-        }
-        
-        // 4. Номер договора
-        $contractNumber = $order['contractNumber'] ?? '';
-        
-        // 5. Дата договора - из карточки договора, пока оставляем пустым
-        $contractDate = '';
-        
-        // 6. ИНН заказчика
+    public function parseOrder($order, $contract, $legalEntity, $mediaplans)
+    {
+        // ===== Основные поля заказа =====
+        // Для "Номер акта" берём applicationNumber (чистое число, как в файле)
+        // Из orderNumber убираем префикс "ORD - "
+        $rawOrderNumber = $order['orderNumber'] ?? '';
+        $actNumber = preg_replace('/^ORD\s*-\s*/i', '', $rawOrderNumber);
+        $reportingDate = $this->formatDate($order['reportingDate'] ?? '');
+
+        $periodStart = $this->formatDate($order['startDate'] ?? '');
+        $periodEnd = $this->formatDate($order['endDate'] ?? '');
+        $period = ($periodStart && $periodEnd) ? "$periodStart — $periodEnd" : '';
+
+        $ourCompany = $order['ourCompanyName'] ?? '';
+
+        // ===== Договор (для даты; номер уже есть в order) =====
+        $contractNumber = $order['contractNumber'] ?? ($contract['contractNumber'] ?? '');
+        $contractDate = $this->formatDateTime($contract['startDate'] ?? '');
+
+        // ===== Юрлицо (name + inn) =====
+        $contractorName = $legalEntity['name'] ?? '';
         $inn = $legalEntity['inn'] ?? '';
-        
-        // 7. Сумма без НДС
-        $amountWithoutVat = $order['amountWithoutVatRub'] ?? 0;
-        if (is_numeric($amountWithoutVat)) {
-            $amountWithoutVat = number_format($amountWithoutVat, 2, '.', ' ');
-        }
-        
-        // 8. Ставка НДС
-        $vatPct = $order['vatPct'] ?? 0;
-        if ($vatPct) {
-            $vatPct = $vatPct . '%';
-        }
-        
-        // 9. Сумма НДС
-        $vatRub = $order['vatRub'] ?? 0;
-        if (is_numeric($vatRub)) {
-            $vatRub = number_format($vatRub, 2, '.', ' ');
-        }
-        
-        // 10. Сумма с НДС
-        $amountWithVat = $order['amountWithVatRub'] ?? 0;
-        if (is_numeric($amountWithVat)) {
-            $amountWithVat = number_format($amountWithVat, 2, '.', ' ');
-        }
-        
-        // 11. ID пункта акта - берем id заказа
-        $itemId = $order['id'] ?? '';
-        
-        // 12. Показы факт. - поле для ручного ввода (пустое)
-        $impressionsFact = '';
-        
-        // 13. Показы по акту - сумма volume из медиапланов с unitName = "1000 показов"
-        $impressionsAct = $this->calculateImpressions($mediaplans);
-        
-        // 14-16. Статистика - пока оставляем пустым (будет позже)
-        $statNoNds = '';
-        $statNds = '';
-        $statWithNds = '';
-        
+
+        // ===== Суммы =====
+        $amountWithoutVat = $this->formatNumber($order['amountWithoutVatRub'] ?? 0);
+        $vatPct = isset($order['vatPct']) ? $order['vatPct'] . '%' : '';
+        $vatRub = $this->formatNumber($order['vatRub'] ?? 0);
+        $amountWithVat = $this->formatNumber($order['amountWithVatRub'] ?? 0);
+
+        // ===== ID пункта = UUID заказа =====
+        $orderId = $order['id'] ?? '';
+
+        // ===== Расчёт показов =====
+        $impressions = $this->calculateImpressions($mediaplans);
+
         return [
             'Номер акта' => $actNumber,
-            'Дата акта' => $actDate,
+            'Дата акта' => $reportingDate,
             'Период оказания' => $period,
-            'Номер договора' => $contractNumber,
-            'Дата договора' => $contractDate,
+            'Наша компания' => $ourCompany,
+            'Номер ДД' => $contractNumber,
+            'Дата ДД' => $contractDate,
+            'Наименование контрагента' => $contractorName,
             'ИНН заказчика' => $inn,
             'Сумма без НДС' => $amountWithoutVat,
             'Ставка НДС' => $vatPct,
             'Сумма НДС' => $vatRub,
             'Сумма с НДС' => $amountWithVat,
-            'ID пункта акта' => $itemId,
-            'Показы факт.' => $impressionsFact,
-            'Показы по акту' => $impressionsAct,
-            'Сумма без НДС (стат.)' => $statNoNds,
-            'Сумма НДС (стат.)' => $statNds,
-            'Сумма с НДС (стат.)' => $statWithNds,
-            // Сохраняем raw данные для дальнейшего использования
-            '_raw_order' => $order,
-            '_raw_legal_entity' => $legalEntity,
-            '_raw_mediaplans' => $mediaplans
+            'ID пункта' => $orderId,
+            'Общее число фактич. показов' => '',
+            'Общее число показов по акту' => $impressions['volume'],
+            '_is_cpm' => $impressions['is_cpm'],
         ];
     }
-    
+
     /**
-     * Рассчитывает показы по акту из медиапланов
-     * Суммирует volume только для unitName = "1000 показов"
-     * 
-     * @param array $mediaplans Массив медиапланов
-     * @return string Сумма показов или "клики/шт" если unitName не "1000 показов"
+     * Считает показы: суммирует volume только для unitName = "1000 показов"
      */
-    private function calculateImpressions($mediaplans) {
+    private function calculateImpressions($mediaplans)
+    {
         if (empty($mediaplans)) {
-            return '';
+            return ['volume' => '', 'is_cpm' => false];
         }
-        
+
         $totalVolume = 0;
-        $hasNonImpression = false;
-        $nonImpressionTypes = [];
-        
+        $hasCpm = false;
+        $hasOther = false;
+        $otherTypes = [];
+
         foreach ($mediaplans as $mp) {
             $unitName = $mp['unitName'] ?? '';
             $volume = $mp['volume'] ?? 0;
-            
-            // Проверяем, что это показы
-            if (strpos(strtolower($unitName), '1000 показов') !== false) {
-                $totalVolume += (int)$volume;
+
+            if (stripos($unitName, '1000 показов') !== false) {
+                $totalVolume += (int) $volume;
+                $hasCpm = true;
             } else {
-                $hasNonImpression = true;
-                $nonImpressionTypes[] = $unitName;
+                $hasOther = true;
+                if (!empty($unitName)) {
+                    $otherTypes[$unitName] = true;
+                }
             }
         }
-        
-        // Если есть показы - возвращаем сумму
-        if ($totalVolume > 0) {
-            return number_format($totalVolume, 0, '.', ' ');
+
+        if ($hasCpm) {
+            return [
+                'volume' => number_format($totalVolume, 0, '.', ' '),
+                'is_cpm' => true
+            ];
         }
-        
-        // Если показов нет, но есть другие типы
-        if ($hasNonImpression) {
-            $uniqueTypes = array_unique($nonImpressionTypes);
-            return implode('/', $uniqueTypes);
+
+        if ($hasOther) {
+            return [
+                'volume' => implode('/', array_keys($otherTypes)),
+                'is_cpm' => false
+            ];
         }
-        
-        return '';
+
+        return ['volume' => '', 'is_cpm' => false];
+    }
+
+    private function formatDate($date)
+    {
+        if (empty($date))
+            return '';
+        $ts = strtotime($date);
+        if ($ts === false)
+            return $date;
+        return date('d.m.Y', $ts);
+    }
+
+    private function formatDateTime($datetime)
+    {
+        if (empty($datetime))
+            return '';
+        $datePart = substr($datetime, 0, 10);
+        return $this->formatDate($datePart);
+    }
+
+    private function formatNumber($number)
+    {
+        if (!is_numeric($number))
+            return $number;
+        return number_format((float) $number, 2, '.', ' ');
     }
 }
 ?>

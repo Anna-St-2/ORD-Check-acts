@@ -1156,3 +1156,10 @@ select[multiple] option:checked {
         padding: 3px 6px;
     }
 }
+
+.cpm-label {
+    color: #6b7280;
+    font-size: 12px;
+    margin-left: 4px;
+    font-weight: 500;
+}
