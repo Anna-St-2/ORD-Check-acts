@@ -5,6 +5,28 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+
+// Подключение к БД
+$pdo = Database::getInstance()->getConnection();
+
+$dbImpressions = [];
+$stmt = $pdo->query("SELECT act_number, impressions FROM fact_impressions");
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    $dbImpressions[$row['act_number']] = $row['impressions'];
+}
+
+$manualImpressions = array_merge($_SESSION['manual_impressions'] ?? [], $dbImpressions);
+
+// Получаем все сохраненные показы
+$dbImpressions = [];
+$stmt = $pdo->query("SELECT act_number, impressions FROM fact_impressions");
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    $dbImpressions[$row['act_number']] = $row['impressions'];
+}
+
+// Объединяем с сессией (БД имеет приоритет, если в сессии пусто)
+$manualImpressions = array_merge($_SESSION['manual_impressions'] ?? [], $dbImpressions);
+
 // Получаем данные из сессии
 $actsData = isset($_SESSION['acts_data']) ? $_SESSION['acts_data'] : [];
 $uploadedFileName = isset($_SESSION['uploaded_file_name']) ? $_SESSION['uploaded_file_name'] : '';
@@ -12,6 +34,7 @@ $uploadedFileName = isset($_SESSION['uploaded_file_name']) ? $_SESSION['uploaded
 // ===== Данные из API =====
 $apiData = isset($_SESSION['api_data']) ? $_SESSION['api_data'] : [];
 $apiMeta = isset($_SESSION['api_data_meta']) ? $_SESSION['api_data_meta'] : [];
+$manualImpressions = $_SESSION['manual_impressions'] ?? [];
 
 // ===== ГРУППИРУЕМ ДАННЫЕ ПО НОМЕРУ АКТА =====
 $groupedData = [];
@@ -54,6 +77,43 @@ unset($group);
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/ORD-Check-acts/assets/css/style.css">
+
+
+
+    <style>
+        .compare-table-wrap th {
+            position: relative !important;
+            user-select: none;
+        }
+
+        .compare-table-wrap th .col-resizer {
+            position: absolute !important;
+            top: 0 !important;
+            right: -3px !important;
+            bottom: 0 !important;
+            width: 8px !important;
+            cursor: col-resize !important;
+            z-index: 100 !important;
+            background: transparent;
+        }
+
+        .compare-table-wrap th .col-resizer::after {
+            content: '';
+            position: absolute;
+            top: 25%;
+            bottom: 25%;
+            left: 50%;
+            width: 1px;
+            background: #cbd5e1;
+            transform: translateX(-50%);
+        }
+
+        .compare-table-wrap th .col-resizer:hover::after,
+        .compare-table-wrap th .col-resizer.dragging::after {
+            background: #3b82f6;
+            width: 2px;
+        }
+    </style>
 </head>
 
 <body>
@@ -80,11 +140,17 @@ unset($group);
                     </a>
                 </li>
                 <li>
+                    <a href="/ORD-Check-acts/impressions">
+                        <span class="nav-icon"><i class="fas fa-chart-bar"></i></span>
+                        Факт. показы
+                    </a>
+                </li>
+                <!-- <li>
                     <a href="/ORD-Check-acts/dashboard#history-section">
                         <span class="nav-icon"><i class="fas fa-history"></i></span>
                         История проверок
                     </a>
-                </li>
+                </li> -->
                 <li>
                     <a href="/ORD-Check-acts/login?action=logout" class="logout">
                         <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
@@ -348,143 +414,18 @@ unset($group);
                                                         <?php $isFirst = false; ?>
                                                     <?php endforeach; ?>
                                                 <?php endforeach; ?>
-                                            <?php else: ?>
+
+                                                <tr>
+                                                <?php else: ?>
                                                 <tr>
                                                     <td colspan="23" class="table-empty">
                                                         <i class="fas fa-inbox"></i>
-                                                        <!-- Правая колонка: API -->
-                                                        <div class="col-md-6">
-                                                            <div class="card" style="margin-top:0;">
-                                                                <div class="card-header" style="background:var(--gray-50);">
-                                                                    <div class="col-header">
-                                                                        <i class="fas fa-database"></i> Данные из API
-                                                                        <span class="badge bg-primary"
-                                                                            style="font-size:12px;margin-left:8px;">
-                                                                            <?= count($apiData) ?> записей
-                                                                        </span>
-                                                                        <?php if (empty($apiData) && !empty($uploadedFileName)): ?>
-                                                                            <span class="badge bg-warning"
-                                                                                style="font-size:11px;margin-left:8px;">
-                                                                                <i class="fas fa-exclamation-triangle"></i> не
-                                                                                загружено
-                                                                            </span>
-                                                                        <?php endif; ?>
-                                                                    </div>
-                                                                </div>
-                                                                <div class="card-body" style="padding:12px;">
-                                                                    <div class="compare-table-wrap">
-                                                                        <table>
-                                                                            <thead>
-                                                                                <tr>
-                                                                                    <th style="min-width:100px;">Номер акта
-                                                                                    </th>
-                                                                                    <th style="min-width:100px;">Дата акта
-                                                                                    </th>
-                                                                                    <th style="min-width:140px;">Период
-                                                                                        оказания</th>
-                                                                                    <th style="min-width:130px;">Наша
-                                                                                        компания</th>
-                                                                                    <th style="min-width:100px;">Номер ДД
-                                                                                    </th>
-                                                                                    <th style="min-width:100px;">Дата ДД
-                                                                                    </th>
-                                                                                    <th style="min-width:150px;">
-                                                                                        Наименование контрагента</th>
-                                                                                    <th style="min-width:110px;">ИНН
-                                                                                        заказчика</th>
-                                                                                    <th
-                                                                                        style="min-width:110px;text-align:right;">
-                                                                                        Сумма без НДС</th>
-                                                                                    <th style="min-width:80px;">Ставка НДС
-                                                                                    </th>
-                                                                                    <th
-                                                                                        style="min-width:100px;text-align:right;">
-                                                                                        Сумма НДС</th>
-                                                                                    <th
-                                                                                        style="min-width:110px;text-align:right;">
-                                                                                        Сумма с НДС</th>
-                                                                                    <th style="min-width:80px;">ID пункта
-                                                                                    </th>
-                                                                                    <th
-                                                                                        style="min-width:130px;text-align:right;">
-                                                                                        Общее число фактич. показов</th>
-                                                                                    <th
-                                                                                        style="min-width:120px;text-align:right;">
-                                                                                        Общее число показов по акту</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                <?php if (count($apiData) > 0): ?>
-                                                                                    <?php foreach ($apiData as $row): ?>
-                                                                                        <tr>
-                                                                                            <td><strong><?= htmlspecialchars($row['Номер акта'] ?? '') ?></strong>
-                                                                                            </td>
-                                                                                            <td><?= htmlspecialchars($row['Дата акта'] ?? '') ?>
-                                                                                            </td>
-                                                                                            <td><?= htmlspecialchars($row['Период оказания'] ?? '') ?>
-                                                                                            </td>
-                                                                                            <td><?= htmlspecialchars($row['Наша компания'] ?? '') ?>
-                                                                                            </td>
-                                                                                            <td><?= htmlspecialchars($row['Номер ДД'] ?? '') ?>
-                                                                                            </td>
-                                                                                            <td><?= htmlspecialchars($row['Дата ДД'] ?? '') ?>
-                                                                                            </td>
-                                                                                            <td><?= htmlspecialchars($row['Наименование контрагента'] ?? '') ?>
-                                                                                            </td>
-                                                                                            <td><?= htmlspecialchars($row['ИНН заказчика'] ?? '') ?>
-                                                                                            </td>
-                                                                                            <td style="text-align:right;">
-                                                                                                <?= htmlspecialchars($row['Сумма без НДС'] ?? '') ?>
-                                                                                            </td>
-                                                                                            <td><?= htmlspecialchars($row['Ставка НДС'] ?? '') ?>
-                                                                                            </td>
-                                                                                            <td style="text-align:right;">
-                                                                                                <?= htmlspecialchars($row['Сумма НДС'] ?? '') ?>
-                                                                                            </td>
-                                                                                            <td style="text-align:right;">
-                                                                                                <?= htmlspecialchars($row['Сумма с НДС'] ?? '') ?>
-                                                                                            </td>
-                                                                                            <td><code
-                                                                                                    style="font-size:11px;"><?= htmlspecialchars(substr($row['ID пункта'] ?? '', 0, 8)) ?>…</code>
-                                                                                            </td>
-                                                                                            <td style="text-align:right;">
-                                                                                                <?php if (!empty($row['_is_cpm'])): ?>
-                                                                                                    <input type="text"
-                                                                                                        class="impressions-input"
-                                                                                                        placeholder="введите">
-                                                                                                    <span class="cpm-label">CPM</span>
-                                                                                                <?php else: ?>
-                                                                                                    <?= htmlspecialchars($row['Общее число фактич. показов'] ?? '') ?>
-                                                                                                <?php endif; ?>
-                                                                                            </td>
-                                                                                            <td style="text-align:right;">
-                                                                                                <?= htmlspecialchars($row['Общее число показов по акту'] ?? '') ?>
-                                                                                            </td>
-                                                                                        </tr>
-                                                                                    <?php endforeach; ?>
-                                                                                <?php else: ?>
-                                                                                    <tr>
-                                                                                        <td colspan="15" class="table-empty">
-                                                                                            <i
-                                                                                                class="fas fa-cloud-upload-alt"></i>
-                                                                                            <?php if (!empty($uploadedFileName)): ?>
-                                                                                                Нажмите "Загрузить данные" для
-                                                                                                получения данных из API
-                                                                                            <?php else: ?>
-                                                                                                Загрузите сначала файл актов
-                                                                                            <?php endif; ?>
-                                                                                        </td>
-                                                                                    </tr>
-                                                                                <?php endif; ?>
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
+                                                        Нет данных из файла актов
                                                     </td>
                                                 </tr>
                                             <?php endif; ?>
+                                            </tr>
+
                                         </tbody>
                                     </table>
                                 </div>
@@ -547,22 +488,29 @@ unset($group);
                                                         <td><?= htmlspecialchars($row['Наименование контрагента'] ?? '') ?></td>
                                                         <td><?= htmlspecialchars($row['ИНН заказчика'] ?? '') ?></td>
                                                         <td style="text-align:right;">
-                                                            <?= htmlspecialchars($row['Сумма без НДС'] ?? '') ?></td>
+                                                            <?= htmlspecialchars($row['Сумма без НДС'] ?? '') ?>
+                                                        </td>
                                                         <td><?= htmlspecialchars($row['Ставка НДС'] ?? '') ?></td>
                                                         <td style="text-align:right;">
-                                                            <?= htmlspecialchars($row['Сумма НДС'] ?? '') ?></td>
-                                                        <td style="text-align:right;">
-                                                            <?= htmlspecialchars($row['Сумма с НДС'] ?? '') ?></td>
-                                                        <td><code
-                                                                style="font-size:11px;"><?= htmlspecialchars(substr($row['ID пункта'] ?? '', 0, 8)) ?>…</code>
+                                                            <?= htmlspecialchars($row['Сумма НДС'] ?? '') ?>
                                                         </td>
                                                         <td style="text-align:right;">
-                                                            <?php if (!empty($row['_is_cpm'])): ?>
-                                                                <input type="text" class="impressions-input" placeholder="введите">
-                                                                <span class="cpm-label">CPM</span>
-                                                            <?php else: ?>
-                                                                <?= htmlspecialchars($row['Общее число фактич. показов'] ?? '') ?>
-                                                            <?php endif; ?>
+                                                            <?= htmlspecialchars($row['Сумма с НДС'] ?? '') ?>
+                                                        </td>
+                                                        <td>
+                                                            <code
+                                                                class="order-id"><?= htmlspecialchars($row['ID пункта'] ?? '') ?></code>
+                                                        </td>
+                                                        <td style="text-align:right;">
+
+                                                            <input type="text" class="impressions-input"
+                                                                data-act="<?= htmlspecialchars($row['Номер акта'] ?? '') ?>"
+                                                                value="<?= htmlspecialchars($manualImpressions[$row['Номер акта'] ?? ''] ?? '') ?>"
+                                                                placeholder="введите">
+                                                            <span class="cpm-label">CPM</span>
+
+                                                            <?= htmlspecialchars($row['Общее число фактич. показов'] ?? '') ?>
+
                                                         </td>
                                                         <td style="text-align:right;">
                                                             <?= htmlspecialchars($row['Общее число показов по акту'] ?? '') ?>
@@ -589,12 +537,16 @@ unset($group);
                     </div>
 
                     <!-- Кнопка для возврата -->
-                    <div class="mt-4">
+                    <div class="mt-4" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                        <button id="btnCheck" class="btn-primary" onclick="runCheck()">
+                            <i class="fas fa-check-double"></i> Проверить
+                        </button>
                         <a href="/ORD-Check-acts/dashboard" class="btn-primary"
                             style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;">
                             <i class="fas fa-arrow-left"></i> На главную
                         </a>
                     </div>
+                    <div id="checkResult"></div>
                 </div>
         </main>
     </div>
@@ -603,8 +555,117 @@ unset($group);
         function toggleSidebar() {
             document.getElementById('sidebar').classList.toggle('open');
         }
+
+        // ===== Изменение ширины столбцов (через colgroup) =====
+        function makeColumnsResizable(table) {
+            if (table.dataset.resizable === '1') return;
+            table.dataset.resizable = '1';
+
+            const thead = table.querySelector('thead');
+            if (!thead) return;
+            const headerCells = thead.querySelectorAll('th');
+            if (!headerCells.length) return;
+
+            // 1. Убираем inline min-width, чтобы они не мешали сжатию
+            headerCells.forEach(function (th) {
+                th.style.minWidth = '';
+                th.style.width = '';
+            });
+
+            // 2. Фиксируем текущие ширины колонок
+            const widths = Array.from(headerCells).map(function (th) {
+                return th.offsetWidth;
+            });
+
+            // 3. Создаём colgroup и применяем ширины
+            let colgroup = table.querySelector('colgroup');
+            if (!colgroup) {
+                colgroup = document.createElement('colgroup');
+                widths.forEach(function () {
+                    colgroup.appendChild(document.createElement('col'));
+                });
+                table.insertBefore(colgroup, table.firstChild);
+            }
+            const cols = colgroup.querySelectorAll('col');
+            widths.forEach(function (w, i) {
+                if (cols[i]) cols[i].style.width = w + 'px';
+            });
+
+            // 4. table-layout: fixed — обязателен, чтобы col.width работал
+            table.style.tableLayout = 'fixed';
+
+            // 5. Навешиваем ресайзеры
+            headerCells.forEach(function (th, i) {
+                if (th.querySelector('.col-resizer')) return;
+
+                const resizer = document.createElement('div');
+                resizer.className = 'col-resizer';
+                th.appendChild(resizer);
+
+                let startX, startWidth;
+
+                resizer.addEventListener('mousedown', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    startX = e.pageX;
+                    startWidth = th.offsetWidth;
+                    resizer.classList.add('dragging');
+
+                    function onMouseMove(ev) {
+                        const newWidth = Math.max(50, startWidth + (ev.pageX - startX));
+                        if (cols[i]) cols[i].style.width = newWidth + 'px';
+                    }
+                    function onMouseUp() {
+                        resizer.classList.remove('dragging');
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                    }
+
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.compare-table-wrap table').forEach(makeColumnsResizable);
+        });
+
+
+
+        function runCheck() {
+            const inputs = document.querySelectorAll('.impressions-input');
+            const data = {};
+            inputs.forEach(inp => {
+                const act = inp.dataset.act;
+                if (act) data[act] = inp.value.trim();
+            });
+
+            const btn = document.getElementById('btnCheck');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Проверка...';
+
+            fetch('/ORD-Check-acts/modules/api/compare_check.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({manual_impressions: data})
+            })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        document.getElementById('checkResult').innerHTML = res.html;
+                        document.querySelectorAll('#checkResult table').forEach(makeColumnsResizable);
+                    } else {
+                        alert('Ошибка: ' + (res.error || 'неизвестная'));
+                    }
+                })
+                .catch(err => alert('Ошибка соединения: ' + err.message))
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-check-double"></i> Проверить';
+                });
+        }
     </script>
-    <script src="/ORD-Check-acts/assets/js/app.js"></script>
 </body>
 
 </html>

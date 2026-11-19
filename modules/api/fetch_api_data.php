@@ -7,6 +7,9 @@ session_start();
 header('Content-Type: application/json; charset=utf-8');
 set_time_limit(600);
 
+require_once __DIR__ . '/ActNumberNormalizer.php';
+
+
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'error' => 'Не авторизован']);
     exit;
@@ -63,32 +66,62 @@ foreach ($orders as $order) {
 }
 $log[] = "С ordSubmit='Да': " . count($filteredByOrd);
 
+
 // ===== Шаг 3: Фильтр по номерам актов из файла =====
 $filtered = [];
+
 if (!empty($actNumbersFromFile)) {
-    // Нормализуем номера из файла: только цифры
     $normalizedFileNumbers = [];
+
     foreach ($actNumbersFromFile as $num => $v) {
-        $normalized = preg_replace('/\D+/', '', $num);
-        if (!empty($normalized)) {
+        $normalized = ActNumberNormalizer::normalize($num);
+        if ($normalized !== '') {
             $normalizedFileNumbers[$normalized] = true;
         }
     }
 
     $log[] = "Уникальных номеров из файла: " . count($normalizedFileNumbers);
 
-    // Пробегаем по заказам API
+    $matchedNormalized = [];
+    $unmatchedExamples = [];
+    $anomalies = [];
+
     foreach ($filteredByOrd as $order) {
-        // ⚠️ ИСПОЛЬЗУЕМ orderNumber: "ORD - 28144" → "28144"
-        $orderNumber = trim($order['orderNumber'] ?? '');
-        $normalizedApi = preg_replace('/\D+/', '', $orderNumber);
+        $normalizedApi = ActNumberNormalizer::fromOrder($order);
+
+        if ($normalizedApi === '') {
+            $anomalies[] = [
+                'orderNumber' => $order['orderNumber'] ?? null,
+                'reason' => ActNumberNormalizer::diagnoseOrder($order),
+            ];
+            continue;
+        }
 
         if (isset($normalizedFileNumbers[$normalizedApi])) {
             $filtered[] = $order;
+            $matchedNormalized[$normalizedApi] = true;
+        } elseif (count($unmatchedExamples) < 10) {
+            $unmatchedExamples[] = [
+                'orderNumber' => $order['orderNumber'] ?? null,
+                'normalized' => $normalizedApi,
+            ];
         }
     }
 
     $log[] = "Совпало с файлом актов: " . count($filtered);
+
+    $missingInApi = array_diff(
+        array_keys($normalizedFileNumbers),
+        array_keys($matchedNormalized)
+    );
+
+    if (!empty($missingInApi)) {
+        $log[] = "Номера из файла без пары в API: " . implode(', ', $missingInApi);
+    }
+
+    if (!empty($anomalies)) {
+        $log[] = "Аномалии orderNumber: " . json_encode($anomalies, JSON_UNESCAPED_UNICODE);
+    }
 } else {
     $filtered = $filteredByOrd;
     $log[] = "Файл актов не загружен — берём все";

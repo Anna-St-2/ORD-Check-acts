@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/ActNumberNormalizer.php';
 /**
  * Класс для преобразования данных из API в строки таблицы
  */
@@ -10,11 +12,10 @@ class ApiDataParser
      */
     public function parseOrder($order, $contract, $legalEntity, $mediaplans)
     {
+        $actNumber = ActNumberNormalizer::fromOrder($order);
         // ===== Основные поля заказа =====
-        // Для "Номер акта" берём applicationNumber (чистое число, как в файле)
+        // Для "Номер акта" берём orderNumber (чистое число, как в файле)
         // Из orderNumber убираем префикс "ORD - "
-        $rawOrderNumber = $order['orderNumber'] ?? '';
-        $actNumber = preg_replace('/^ORD\s*-\s*/i', '', $rawOrderNumber);
         $reportingDate = $this->formatDate($order['reportingDate'] ?? '');
 
         $periodStart = $this->formatDate($order['startDate'] ?? '');
@@ -58,23 +59,27 @@ class ApiDataParser
             'Сумма с НДС' => $amountWithVat,
             'ID пункта' => $orderId,
             'Общее число фактич. показов' => '',
-            'Общее число показов по акту' => $impressions['volume'],
+            'Общее число показов по акту' => $impressions['value'],
             '_is_cpm' => $impressions['is_cpm'],
         ];
     }
 
     /**
-     * Считает показы: суммирует volume только для unitName = "1000 показов"
+     * Считает плановые показы из медиаплана.
+     *   - unitName = "1000 показов" (CPM) → volume × 1000
+     *   - остальное (штук, клики и т.п.) → показов нет, возвращаем объём
+     *
+     * manualImpressions из API сознательно не используется:
+     * фактические показы вводятся вручную в compare.php.
      */
     private function calculateImpressions($mediaplans)
     {
         if (empty($mediaplans)) {
-            return ['volume' => '', 'is_cpm' => false];
+            return ['value' => '', 'is_cpm' => false];
         }
 
         $totalVolume = 0;
         $hasCpm = false;
-        $hasOther = false;
         $otherTypes = [];
 
         foreach ($mediaplans as $mp) {
@@ -85,7 +90,6 @@ class ApiDataParser
                 $totalVolume += (int) $volume;
                 $hasCpm = true;
             } else {
-                $hasOther = true;
                 if (!empty($unitName)) {
                     $otherTypes[$unitName] = true;
                 }
@@ -94,19 +98,19 @@ class ApiDataParser
 
         if ($hasCpm) {
             return [
-                'volume' => number_format($totalVolume, 0, '.', ' '),
-                'is_cpm' => true
+                'value' => number_format($totalVolume, 0, '.', ' '),
+                'is_cpm' => true,
             ];
         }
 
-        if ($hasOther) {
+        if (!empty($otherTypes)) {
             return [
-                'volume' => implode('/', array_keys($otherTypes)),
-                'is_cpm' => false
+                'value' => implode(' / ', array_keys($otherTypes)),
+                'is_cpm' => false,
             ];
         }
 
-        return ['volume' => '', 'is_cpm' => false];
+        return ['value' => '', 'is_cpm' => false];
     }
 
     private function formatDate($date)

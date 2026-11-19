@@ -42,11 +42,17 @@ if (!isset($_SESSION['user_id'])) {
                         Новая проверка
                     </a>
                 </li>
-                <li>
+                <!-- <li>
                     <a href="#history-section"
                         onclick="document.getElementById('history-section').scrollIntoView({behavior:'smooth'})">
                         <span class="nav-icon"><i class="fas fa-history"></i></span>
                         История проверок
+                    </a>
+                </li> -->
+                <li>
+                    <a href="/ORD-Check-acts/impressions">
+                        <span class="nav-icon"><i class="fas fa-chart-bar"></i></span>
+                        Факт. показы
                     </a>
                 </li>
                 <li>
@@ -79,7 +85,7 @@ if (!isset($_SESSION['user_id'])) {
             <!-- Тело -->
             <div class="main-body">
                 <!-- БЛОК ИСТОРИИ ПРОВЕРОК (сверху) -->
-                <div id="history-section" class="card">
+                <!-- <div id="history-section" class="card">
                     <div class="card-header">
                         <h5><i class="fas fa-list"></i> История проверок</h5>
                     </div>
@@ -106,7 +112,7 @@ if (!isset($_SESSION['user_id'])) {
                             </table>
                         </div>
                     </div>
-                </div>
+                </div> -->
 
                 <!-- БЛОК НОВОЙ ПРОВЕРКИ -->
                 <div id="new-check-section" class="card" style="margin-top:20pt;">
@@ -503,31 +509,31 @@ if (!isset($_SESSION['user_id'])) {
         `;
         }
 
-        // Загрузка истории (заглушка)
-        function loadHistory() {
-            const tbody = document.getElementById('historyBody');
-            if (!tbody) return;
+        // // Загрузка истории (заглушка)
+        // function loadHistory() {
+        //     const tbody = document.getElementById('historyBody');
+        //     if (!tbody) return;
 
-            tbody.innerHTML = `
-            <tr>
-                <td colspan="4" class="text-center text-muted py-4">
-                    <i class="fas fa-spinner fa-spin" style="font-size:24px;display:block;margin-bottom:8px;"></i>
-                    Загрузка истории...
-                </td>
-            </tr>
-        `;
+        //     tbody.innerHTML = `
+        //     <tr>
+        //         <td colspan="4" class="text-center text-muted py-4">
+        //             <i class="fas fa-spinner fa-spin" style="font-size:24px;display:block;margin-bottom:8px;"></i>
+        //             Загрузка истории...
+        //         </td>
+        //     </tr>
+        // `;
 
-            setTimeout(() => {
-                tbody.innerHTML = `
-                <tr>
-                    <td colspan="4" class="text-center text-muted py-4">
-                        <i class="fas fa-inbox" style="font-size:24px;display:block;margin-bottom:8px;"></i>
-                        Нет выполненных проверок
-                    </td>
-                </tr>
-            `;
-            }, 1000);
-        }
+        //     setTimeout(() => {
+        //         tbody.innerHTML = `
+        //         <tr>
+        //             <td colspan="4" class="text-center text-muted py-4">
+        //                 <i class="fas fa-inbox" style="font-size:24px;display:block;margin-bottom:8px;"></i>
+        //                 Нет выполненных проверок
+        //             </td>
+        //         </tr>
+        //     `;
+        //     }, 1000);
+        // }
 
         // Инициализация
         document.addEventListener('DOMContentLoaded', function () {

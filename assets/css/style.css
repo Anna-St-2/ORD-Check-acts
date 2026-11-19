@@ -1157,9 +1157,49 @@ select[multiple] option:checked {
     }
 }
 
-.cpm-label {
-    color: #6b7280;
-    font-size: 12px;
-    margin-left: 4px;
-    font-weight: 500;
+
+
+
+
+.compare-table-wrap th {
+    position: relative;
+    user-select: none;
 }
+
+.col-resizer {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    bottom: 0;
+    width: 6px;
+    cursor: col-resize;
+    z-index: 10;
+}
+
+.col-resizer::after {
+    content: '';
+    position: absolute;
+    top: 20%;
+    bottom: 20%;
+    left: 50%;
+    width: 1px;
+    background: #d1d5db;
+    transform: translateX(-50%);
+    transition: background 0.15s, width 0.15s;
+}
+
+.col-resizer:hover::after,
+.col-resizer.dragging::after {
+    background: #3b82f6;
+    width: 2px;
+}
+
+
+
+
+
+
+
+
+
+    

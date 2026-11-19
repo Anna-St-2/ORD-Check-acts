@@ -5,7 +5,7 @@ class Database {
     
     private function __construct() {
         $host = 'localhost';
-        $dbname = 'ord_check_acts';
+        $dbname = 'ord_check';
         $username = 'root';
         $password = '';
         

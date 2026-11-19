@@ -1,6 +1,7 @@
 <?php
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
+set_time_limit(300);
 
 session_start();
 
@@ -10,94 +11,89 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/../ApiClient.php';
 require_once __DIR__ . '/../ApiDataParser.php';
+require_once __DIR__ . '/../ActNumberNormalizer.php';
 
 $api = new ApiClient();
 $parser = new ApiDataParser();
 
-// Фиксированный период - июль 2026
-$dateFrom = '2026-07-01';
-$dateTo = '2026-07-31';
+$dateFrom = $_GET['dateFrom'] ?? '2026-07-01';
+$dateTo   = $_GET['dateTo']   ?? '2026-07-31';
+$limit    = (int)($_GET['limit'] ?? 10);
+if ($limit <= 0 || $limit > 50) $limit = 10;
 
-// Для теста - пустой массив департаментов (все)
-$departmentIds = [];
+echo "<h2>🧪 Данные за {$dateFrom} — {$dateTo}</h2>";
+echo "<p>Сэмпл: <strong>{$limit}</strong> (параметр <code>limit</code>)</p>";
 
-echo "<h2>🧪 Получение данных за {$dateFrom} — {$dateTo}</h2>";
-
-// Получаем данные
-$fullData = $api->getFullData($dateFrom, $dateTo, $departmentIds);
-
-// Выводим ошибки
-if (!empty($fullData['errors'])) {
-    echo "<div style='color:red;background:#fee;padding:10px;border-radius:6px;'>";
-    echo "<h3>⚠️ Ошибки:</h3>";
-    echo "<ul>";
-    foreach ($fullData['errors'] as $error) {
-        echo "<li>" . htmlspecialchars($error) . "</li>";
-    }
-    echo "</ul>";
-    echo "</div>";
+// ===== Шаг 1: заказы =====
+$orders = $api->getOrders($dateFrom, $dateTo);
+if ($orders === null) {
+    echo "<p style='color:red'>Ошибка API: " . htmlspecialchars($api->getLastError()) . "</p>";
+    exit;
 }
+echo "<p>Всего заказов: <strong>" . count($orders) . "</strong></p>";
 
-if (empty($fullData['orders'])) {
-    echo "<p>❌ Нет данных за указанный период</p>";
+// ===== Шаг 2: ordSubmit='Да' =====
+$filtered = array_values(array_filter($orders, fn($o) => ($o['ordSubmit'] ?? '') === 'Да'));
+echo "<p>С ordSubmit='Да': <strong>" . count($filtered) . "</strong></p>";
+
+if (empty($filtered)) {
+    echo "<p>❌ Нет заказов с ordSubmit='Да'</p>";
     exit;
 }
 
-// Преобразуем данные в табличный формат
-$tableData = [];
-foreach ($fullData['orders'] as $item) {
-    $row = $parser->parseOrderData(
-        $item['order'],
-        $item['legal_entity'],
-        $item['mediaplans']
-    );
-    $tableData[] = $row;
+// ===== Шаг 3: обогащение + parseOrder (4 аргумента!) =====
+$sample = array_slice($filtered, 0, $limit);
+$rows = [];
+$errors = [];
+
+foreach ($sample as $order) {
+    $actNumber = ActNumberNormalizer::fromOrder($order);
+    try {
+        $contract    = !empty($order['contractId'])    ? $api->getContract($order['contractId'])       : null;
+        $legalEntity = !empty($order['legalEntityId']) ? $api->getLegalEntity($order['legalEntityId']) : null;
+        $mediaplans  = !empty($order['id'])            ? ($api->getMediaplans($order['id']) ?? [])     : [];
+
+        $rows[] = $parser->parseOrder($order, $contract, $legalEntity, $mediaplans);
+    } catch (\Throwable $e) {
+        $errors[] = "act={$actNumber}: " . $e->getMessage();
+    }
 }
 
-// Выводим таблицу
-echo "<h3>📋 Данные для сравнения (" . count($tableData) . " записей)</h3>";
-
-echo "<div style='overflow-x:auto;max-height:600px;overflow-y:auto;'>";
-echo "<table border='1' cellpadding='8' style='border-collapse:collapse;font-size:13px;min-width:1400px;'>";
-echo "<thead style='position:sticky;top:0;background:#f0f0f0;'>";
-echo "<tr>";
-$headers = ['Номер акта', 'Дата акта', 'Период оказания', 'Номер договора', 'Дата договора', 
-            'ИНН заказчика', 'Сумма без НДС', 'Ставка НДС', 'Сумма НДС', 'Сумма с НДС',
-            'ID пункта акта', 'Показы факт.', 'Показы по акту',
-            'Сумма без НДС (стат.)', 'Сумма НДС (стат.)', 'Сумма с НДС (стат.)'];
-foreach ($headers as $h) {
-    echo "<th>" . htmlspecialchars($h) . "</th>";
+if (!empty($errors)) {
+    echo "<div style='color:red;background:#fee;padding:10px;border-radius:6px'>";
+    echo "<h3>⚠️ Ошибки:</h3><ul>";
+    foreach ($errors as $e) echo "<li>" . htmlspecialchars($e) . "</li>";
+    echo "</ul></div>";
 }
-echo "</tr>";
-echo "</thead>";
-echo "<tbody>";
 
-foreach ($tableData as $row) {
+if (empty($rows)) {
+    echo "<p>❌ Нет строк для отображения</p>";
+    exit;
+}
+
+// ===== Шаг 4: таблица (колонки из parseOrder) =====
+$headers = array_keys($rows[0]);
+echo "<h3>📋 Данные (" . count($rows) . " записей)</h3>";
+echo "<div style='overflow-x:auto;max-height:600px;overflow-y:auto'>";
+echo "<table border='1' cellpadding='8' style='border-collapse:collapse;font-size:13px'>";
+echo "<thead style='position:sticky;top:0;background:#f0f0f0'><tr>";
+foreach ($headers as $h) echo "<th>" . htmlspecialchars($h) . "</th>";
+echo "</tr></thead><tbody>";
+foreach ($rows as $row) {
     echo "<tr>";
-    $fields = ['Номер акта', 'Дата акта', 'Период оказания', 'Номер договора', 'Дата договора', 
-               'ИНН заказчика', 'Сумма без НДС', 'Ставка НДС', 'Сумма НДС', 'Сумма с НДС',
-               'ID пункта акта', 'Показы факт.', 'Показы по акту',
-               'Сумма без НДС (стат.)', 'Сумма НДС (стат.)', 'Сумма с НДС (стат.)'];
-    foreach ($fields as $field) {
-        $value = $row[$field] ?? '';
-        echo "<td>" . htmlspecialchars($value) . "</td>";
+    foreach ($headers as $h) {
+        $v = $row[$h] ?? '';
+        if (is_array($v)) $v = json_encode($v, JSON_UNESCAPED_UNICODE);
+        echo "<td>" . htmlspecialchars((string)$v) . "</td>";
     }
     echo "</tr>";
 }
+echo "</tbody></table></div>";
 
-echo "</tbody>";
-echo "</table>";
-echo "</div>";
-
-// Детальный просмотр первого заказа
-if (!empty($tableData)) {
-    echo "<div style='margin-top:20px;'>";
-    echo "<details>";
-    echo "<summary style='cursor:pointer;font-weight:bold;'>📄 Показать сырые данные (первый заказ)</summary>";
-    echo "<pre style='background:#1a1a1a;color:#00ff00;padding:15px;border-radius:6px;overflow:auto;max-height:400px;font-size:12px;'>";
-    echo htmlspecialchars(json_encode($fullData['orders'][0] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-    echo "</pre>";
-    echo "</details>";
-    echo "</div>";
+// ===== Сырой заказ =====
+if (!empty($sample)) {
+    echo "<details style='margin-top:20px'><summary style='cursor:pointer'>📄 Сырой заказ #1</summary>";
+    echo "<pre style='background:#1a1a1a;color:#0f0;padding:15px;overflow:auto;max-height:400px;font-size:12px'>";
+    echo htmlspecialchars(json_encode($sample[0], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    echo "</pre></details>";
 }
-?>

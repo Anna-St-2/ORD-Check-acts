@@ -90,6 +90,14 @@ switch ($path) {
         require_once __DIR__ . '/templates/compare.php';
         break;
 
+    case 'impressions':
+        if (!isset($_SESSION['user_id'])) {
+            header('Location: ' . $base_path . '/login');
+            exit;
+        }
+        require_once __DIR__ . '/templates/impressions.php';
+        break;
+
     default:
         // Если путь не найден - 404
         header('HTTP/1.0 404 Not Found');
