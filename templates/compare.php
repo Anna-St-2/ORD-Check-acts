@@ -113,6 +113,25 @@ unset($group);
             background: #3b82f6;
             width: 2px;
         }
+
+        /* Контейнер должен скроллиться, чтобы sticky работал */
+        .compare-table-wrap {
+            max-height: 70vh;
+            /* Высота таблицы, после которой появляется скролл */
+            overflow-y: auto;
+            overflow-x: auto;
+        }
+
+        /* Закрепляем заголовки */
+        .compare-table-wrap thead th {
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 5 !important;
+            background-color: #f0f0f0 !important;
+            /* Фон обязателен, иначе строки будут просвечивать */
+            box-shadow: inset 0 -1px 0 #ddd;
+            /* Тонкая линия снизу заголовка */
+        }
     </style>
 </head>
 
@@ -541,6 +560,20 @@ unset($group);
                         <button id="btnCheck" class="btn-primary" onclick="runCheck()">
                             <i class="fas fa-check-double"></i> Проверить
                         </button>
+                        <!-- Кнопки экспорта (скрыты по умолчанию) -->
+                        <button id="btnExportAll" class="btn-primary" style="display:none; background-color:#4F46E5;"
+                            onclick="exportTable(false)">
+                            <i class="fas fa-file-export"></i> Экспорт всех
+                        </button>
+                        <button id="btnExportErrors" class="btn-primary" style="display:none; background-color:#EF4444;"
+                            onclick="exportTable(true)">
+                            <i class="fas fa-exclamation-triangle"></i> Экспорт ошибок
+                        </button>
+
+                        <a href="/ORD-Check-acts/dashboard" class="btn-primary"
+                            style="text-decoration:none;display:inline-flex;align-items:center;gap:8px; margin-left: auto;">
+                            <i class="fas fa-arrow-left"></i> На главную
+                        </a>
                         <a href="/ORD-Check-acts/dashboard" class="btn-primary"
                             style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;">
                             <i class="fas fa-arrow-left"></i> На главную
@@ -551,14 +584,15 @@ unset($group);
         </main>
     </div>
 
-    <script>
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('open');
-        }
+        <script>
+    // 1. Боковая панель
+            function toggleSidebar() {
+                document.getElementById('sidebar').classList.toggle('open');
+    }
 
-        // ===== Изменение ширины столбцов (через colgroup) =====
-        function makeColumnsResizable(table) {
-            if (table.dataset.resizable === '1') return;
+            // 2. Изменение ширины столбцов (ресайз)
+            function makeColumnsResizable(table) {
+        if (table.dataset.resizable === '1') return;
             table.dataset.resizable = '1';
 
             const thead = table.querySelector('thead');
@@ -566,105 +600,146 @@ unset($group);
             const headerCells = thead.querySelectorAll('th');
             if (!headerCells.length) return;
 
-            // 1. Убираем inline min-width, чтобы они не мешали сжатию
             headerCells.forEach(function (th) {
                 th.style.minWidth = '';
-                th.style.width = '';
-            });
+            th.style.width = '';
+        });
 
-            // 2. Фиксируем текущие ширины колонок
             const widths = Array.from(headerCells).map(function (th) {
-                return th.offsetWidth;
-            });
+            return th.offsetWidth;
+        });
 
-            // 3. Создаём colgroup и применяем ширины
             let colgroup = table.querySelector('colgroup');
             if (!colgroup) {
                 colgroup = document.createElement('colgroup');
-                widths.forEach(function () {
-                    colgroup.appendChild(document.createElement('col'));
-                });
-                table.insertBefore(colgroup, table.firstChild);
-            }
+            widths.forEach(function () {
+                colgroup.appendChild(document.createElement('col'));
+            });
+            table.insertBefore(colgroup, table.firstChild);
+        }
             const cols = colgroup.querySelectorAll('col');
             widths.forEach(function (w, i) {
-                if (cols[i]) cols[i].style.width = w + 'px';
-            });
-
-            // 4. table-layout: fixed — обязателен, чтобы col.width работал
-            table.style.tableLayout = 'fixed';
-
-            // 5. Навешиваем ресайзеры
-            headerCells.forEach(function (th, i) {
-                if (th.querySelector('.col-resizer')) return;
-
-                const resizer = document.createElement('div');
-                resizer.className = 'col-resizer';
-                th.appendChild(resizer);
-
-                let startX, startWidth;
-
-                resizer.addEventListener('mousedown', function (e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    startX = e.pageX;
-                    startWidth = th.offsetWidth;
-                    resizer.classList.add('dragging');
-
-                    function onMouseMove(ev) {
-                        const newWidth = Math.max(50, startWidth + (ev.pageX - startX));
-                        if (cols[i]) cols[i].style.width = newWidth + 'px';
-                    }
-                    function onMouseUp() {
-                        resizer.classList.remove('dragging');
-                        document.removeEventListener('mousemove', onMouseMove);
-                        document.removeEventListener('mouseup', onMouseUp);
-                    }
-
-                    document.addEventListener('mousemove', onMouseMove);
-                    document.addEventListener('mouseup', onMouseUp);
-                });
-            });
-        }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            document.querySelectorAll('.compare-table-wrap table').forEach(makeColumnsResizable);
+            if (cols[i]) cols[i].style.width = w + 'px';
         });
 
+            table.style.tableLayout = 'fixed';
 
+            headerCells.forEach(function (th, i) {
+            if (th.querySelector('.col-resizer')) return;
 
-        function runCheck() {
-            const inputs = document.querySelectorAll('.impressions-input');
-            const data = {};
-            inputs.forEach(inp => {
-                const act = inp.dataset.act;
-                if (act) data[act] = inp.value.trim();
+            const resizer = document.createElement('div');
+            resizer.className = 'col-resizer';
+            th.appendChild(resizer);
+
+            let startX, startWidth;
+
+            resizer.addEventListener('mousedown', function (e) {
+                e.preventDefault();
+            e.stopPropagation();
+            startX = e.pageX;
+            startWidth = th.offsetWidth;
+            resizer.classList.add('dragging');
+
+            function onMouseMove(ev) {
+                    const newWidth = Math.max(50, startWidth + (ev.pageX - startX));
+            if (cols[i]) cols[i].style.width = newWidth + 'px';
+                }
+            function onMouseUp() {
+                resizer.classList.remove('dragging');
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+                }
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
             });
+        });
+    }
+
+            // 3. Проверка данных (AJAX)
+            function runCheck() {
+        const inputs = document.querySelectorAll('.impressions-input');
+            const data = { };
+        inputs.forEach(inp => {
+            const act = inp.dataset.act;
+            if (act) data[act] = inp.value.trim();
+        });
 
             const btn = document.getElementById('btnCheck');
+            const originalText = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Проверка...';
 
             fetch('/ORD-Check-acts/modules/api/compare_check.php', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({manual_impressions: data})
-            })
-                .then(r => r.json())
-                .then(res => {
-                    if (res.success) {
-                        document.getElementById('checkResult').innerHTML = res.html;
-                        document.querySelectorAll('#checkResult table').forEach(makeColumnsResizable);
-                    } else {
-                        alert('Ошибка: ' + (res.error || 'неизвестная'));
-                    }
-                })
-                .catch(err => alert('Ошибка соединения: ' + err.message))
-                .finally(() => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-check-double"></i> Проверить';
-                });
-        }
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({manual_impressions: data})
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.success) {
+                document.getElementById('checkResult').innerHTML = res.html;
+
+            // Включаем ресайз для новой таблицы
+            document.querySelectorAll('#checkResult table').forEach(makeColumnsResizable);
+
+            // Безопасно показываем кнопки экспорта
+            const btnAll = document.getElementById('btnExportAll');
+            const btnErr = document.getElementById('btnExportErrors');
+            if (btnAll && btnErr) {
+                btnAll.style.display = 'inline-block';
+            btnErr.style.display = 'inline-block';
+                }
+            } else {
+                alert('Ошибка: ' + (res.error || 'неизвестная'));
+            }
+        })
+        .catch(err => alert('Ошибка соединения: ' + err.message))
+        .finally(() => {
+                btn.disabled = false;
+            btn.innerHTML = originalText;
+        });
+    }
+
+            // 4. Экспорт в CSV
+            function exportTable(errorsOnly = false) {
+        const table = document.querySelector('#checkResult table');
+            if (!table) return;
+
+            let csvContent = "";
+        
+        const headers = Array.from(table.querySelectorAll('thead th')).map(th => `"${th.innerText.trim()}"`);
+            csvContent += headers.join(";") + "\r\n";
+
+            const rows = table.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            if (errorsOnly && !row.classList.contains('row-error')) return;
+
+            const cells = Array.from(row.querySelectorAll('td')).map(td => {
+                let text = td.innerText.trim().replace(/(\r\n|\n|\r)/gm, " ");
+            text = text.replace(/"/g, '""');
+            return `"${text}"`;
+            });
+
+            csvContent += cells.join(";") + "\r\n";
+        });
+
+            const blob = new Blob(["\uFEFF" + csvContent], {type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+
+            link.setAttribute("href", url);
+            link.setAttribute("download", errorsOnly ? "Ошибки_сверки.csv" : "Полная_сверка.csv");
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+    }
+
+            // Инициализация при загрузке страницы
+            document.addEventListener('DOMContentLoaded', function () {
+                document.querySelectorAll('.compare-table-wrap table').forEach(makeColumnsResizable);
+    });
     </script>
 </body>
 

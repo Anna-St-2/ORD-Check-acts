@@ -132,7 +132,7 @@ function renderComparisonTable(array $results): string
                     </thead>
                     <tbody>
                         <?php foreach ($results as $r): ?>
-                            <tr>
+                            <tr class="<?= $r['overall'] ? '' : 'row-error' ?>">
                                 <td><strong><?= htmlspecialchars($r['actNumber']) ?></strong></td>
                                 <?php if ($r['status'] === 'not_found'): ?>
                                     <td colspan="18" style="color:#EF4444;background:#FEE2E2;font-weight:bold;">
