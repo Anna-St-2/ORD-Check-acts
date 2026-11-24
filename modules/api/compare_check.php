@@ -36,19 +36,17 @@ try {
     }
 
     // Сохраняем ручной ввод в сессию
-    $_SESSION['manual_impressions'] = $manual;
-    // ДОБАВЛЯЕМ СОХРАНЕНИЕ В БД:
+        $_SESSION['manual_impressions'] = $manual;
+
+    // Сохранение в БД
     $stmt = $pdo->prepare("INSERT INTO fact_impressions (act_number, impressions) 
                            VALUES (:act, :imp) 
                            ON DUPLICATE KEY UPDATE impressions = :imp");
     foreach ($manual as $actNum => $impVal) {
-        if (trim($impVal) === '')
-            continue;
-        // Очищаем от пробелов и берем только цифры
+        if (trim($impVal) === '') continue;
         $cleanImp = (int) preg_replace('/\D+/', '', $impVal);
         $stmt->execute([':act' => $actNum, ':imp' => $cleanImp]);
     }
-
     $actsData = $_SESSION['acts_data'] ?? [];
     $apiData = $_SESSION['api_data'] ?? [];
 

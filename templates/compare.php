@@ -6,26 +6,31 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 
-// Подключение к БД
+// Чтение сохраненных показов из БД
 $pdo = Database::getInstance()->getConnection();
-
 $dbImpressions = [];
-$stmt = $pdo->query("SELECT act_number, impressions FROM fact_impressions");
-while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    $dbImpressions[$row['act_number']] = $row['impressions'];
+try {
+    $stmt = $pdo->query("SELECT act_number, impressions FROM fact_impressions");
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $cleanActNum = preg_replace('/\D+/', '', (string) $row['act_number']);
+        $dbImpressions[$cleanActNum] = $row['impressions'];
+    }
+} catch (Exception $e) {
+    // Тихо игнорируем или логируем ошибку, если БД недоступна
 }
 
-$manualImpressions = array_merge($_SESSION['manual_impressions'] ?? [], $dbImpressions);
+// Объединяем данные (сессия + БД)
+$manualImpressions = array_replace($_SESSION['manual_impressions'] ?? [], $dbImpressions);
 
-// Получаем все сохраненные показы
-$dbImpressions = [];
-$stmt = $pdo->query("SELECT act_number, impressions FROM fact_impressions");
-while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    $dbImpressions[$row['act_number']] = $row['impressions'];
-}
 
-// Объединяем с сессией (БД имеет приоритет, если в сессии пусто)
-$manualImpressions = array_merge($_SESSION['manual_impressions'] ?? [], $dbImpressions);
+
+
+
+// Объединяем (теперь ключи будут строками, например '28144')
+// Если в БД есть данные — берем их. Если нет — берем из сессии.
+$manualImpressions = !empty($dbImpressions) ? $dbImpressions : ($_SESSION['manual_impressions'] ?? []);
+
+
 
 // Получаем данные из сессии
 $actsData = isset($_SESSION['acts_data']) ? $_SESSION['acts_data'] : [];
@@ -453,6 +458,21 @@ unset($group);
                     </div>
 
                     <!-- ===== ПРАВАЯ КОЛОНКА: Данные из API (заглушка) ===== -->
+                    <?php
+                    // ПРИНУДИТЕЛЬНОЕ ЧТЕНИЕ БД ПРЯМО ПЕРЕД ТАБЛИЦЕЙ
+                    $dbData = [];
+                    try {
+                        $pdo_local = Database::getInstance()->getConnection();
+                        $stmt_local = $pdo_local->query("SELECT act_number, impressions FROM fact_impressions");
+                        while ($r = $stmt_local->fetch(PDO::FETCH_ASSOC)) {
+                            $clean = preg_replace('/\D+/', '', (string) $r['act_number']);
+                            $dbData[$clean] = $r['impressions'];
+                        }
+                    } catch (Throwable $e) {
+                        // если ошибка - выведем её
+                        echo "<div style='color:red'>Ошибка чтения БД: " . $e->getMessage() . "</div>";
+                    }
+                    ?>
                     <!-- Правая колонка: API -->
                     <div class="col-md-6">
                         <div class="card" style="margin-top:0;">
@@ -522,13 +542,17 @@ unset($group);
                                                         </td>
                                                         <td style="text-align:right;">
 
+                                                            <?php
+                                                            $cleanApiNum = preg_replace('/\D+/', '', (string) ($row['Номер акта'] ?? ''));
+                                                            $val = $manualImpressions[$cleanApiNum] ?? '';
+                                                            ?>
+                                                        <td style="text-align:right;">
                                                             <input type="text" class="impressions-input"
-                                                                data-act="<?= htmlspecialchars($row['Номер акта'] ?? '') ?>"
-                                                                value="<?= htmlspecialchars($manualImpressions[$row['Номер акта'] ?? ''] ?? '') ?>"
+                                                                data-act="<?= htmlspecialchars($cleanApiNum) ?>"
+                                                                value="<?= htmlspecialchars((string) $val) ?>"
                                                                 placeholder="введите">
-                                                            <span class="cpm-label">CPM</span>
+                                                        </td>
 
-                                                            <?= htmlspecialchars($row['Общее число фактич. показов'] ?? '') ?>
 
                                                         </td>
                                                         <td style="text-align:right;">
@@ -574,25 +598,25 @@ unset($group);
                             style="text-decoration:none;display:inline-flex;align-items:center;gap:8px; margin-left: auto;">
                             <i class="fas fa-arrow-left"></i> На главную
                         </a>
-                        <a href="/ORD-Check-acts/dashboard" class="btn-primary"
+                        <!-- <a href="/ORD-Check-acts/dashboard" class="btn-primary"
                             style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;">
                             <i class="fas fa-arrow-left"></i> На главную
-                        </a>
+                        </a> -->
                     </div>
                     <div id="checkResult"></div>
                 </div>
         </main>
     </div>
 
-        <script>
-    // 1. Боковая панель
-            function toggleSidebar() {
-                document.getElementById('sidebar').classList.toggle('open');
-    }
+    <script>
+        // 1. Боковая панель
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+        }
 
-            // 2. Изменение ширины столбцов (ресайз)
-            function makeColumnsResizable(table) {
-        if (table.dataset.resizable === '1') return;
+        // 2. Изменение ширины столбцов (ресайз)
+        function makeColumnsResizable(table) {
+            if (table.dataset.resizable === '1') return;
             table.dataset.resizable = '1';
 
             const thead = table.querySelector('thead');
@@ -602,68 +626,68 @@ unset($group);
 
             headerCells.forEach(function (th) {
                 th.style.minWidth = '';
-            th.style.width = '';
-        });
+                th.style.width = '';
+            });
 
             const widths = Array.from(headerCells).map(function (th) {
-            return th.offsetWidth;
-        });
+                return th.offsetWidth;
+            });
 
             let colgroup = table.querySelector('colgroup');
             if (!colgroup) {
                 colgroup = document.createElement('colgroup');
-            widths.forEach(function () {
-                colgroup.appendChild(document.createElement('col'));
-            });
-            table.insertBefore(colgroup, table.firstChild);
-        }
+                widths.forEach(function () {
+                    colgroup.appendChild(document.createElement('col'));
+                });
+                table.insertBefore(colgroup, table.firstChild);
+            }
             const cols = colgroup.querySelectorAll('col');
             widths.forEach(function (w, i) {
-            if (cols[i]) cols[i].style.width = w + 'px';
-        });
+                if (cols[i]) cols[i].style.width = w + 'px';
+            });
 
             table.style.tableLayout = 'fixed';
 
             headerCells.forEach(function (th, i) {
-            if (th.querySelector('.col-resizer')) return;
+                if (th.querySelector('.col-resizer')) return;
 
-            const resizer = document.createElement('div');
-            resizer.className = 'col-resizer';
-            th.appendChild(resizer);
+                const resizer = document.createElement('div');
+                resizer.className = 'col-resizer';
+                th.appendChild(resizer);
 
-            let startX, startWidth;
+                let startX, startWidth;
 
-            resizer.addEventListener('mousedown', function (e) {
-                e.preventDefault();
-            e.stopPropagation();
-            startX = e.pageX;
-            startWidth = th.offsetWidth;
-            resizer.classList.add('dragging');
+                resizer.addEventListener('mousedown', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    startX = e.pageX;
+                    startWidth = th.offsetWidth;
+                    resizer.classList.add('dragging');
 
-            function onMouseMove(ev) {
-                    const newWidth = Math.max(50, startWidth + (ev.pageX - startX));
-            if (cols[i]) cols[i].style.width = newWidth + 'px';
-                }
-            function onMouseUp() {
-                resizer.classList.remove('dragging');
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-                }
+                    function onMouseMove(ev) {
+                        const newWidth = Math.max(50, startWidth + (ev.pageX - startX));
+                        if (cols[i]) cols[i].style.width = newWidth + 'px';
+                    }
+                    function onMouseUp() {
+                        resizer.classList.remove('dragging');
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                    }
 
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
             });
-        });
-    }
+        }
 
-            // 3. Проверка данных (AJAX)
-            function runCheck() {
-        const inputs = document.querySelectorAll('.impressions-input');
-            const data = { };
-        inputs.forEach(inp => {
-            const act = inp.dataset.act;
-            if (act) data[act] = inp.value.trim();
-        });
+        // 3. Проверка данных (AJAX)
+        function runCheck() {
+            const inputs = document.querySelectorAll('.impressions-input');
+            const data = {};
+            inputs.forEach(inp => {
+                const act = inp.dataset.act;
+                if (act) data[act] = inp.value.trim();
+            });
 
             const btn = document.getElementById('btnCheck');
             const originalText = btn.innerHTML;
@@ -672,59 +696,59 @@ unset($group);
 
             fetch('/ORD-Check-acts/modules/api/compare_check.php', {
                 method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({manual_impressions: data})
-        })
-        .then(r => r.json())
-        .then(res => {
-            if (res.success) {
-                document.getElementById('checkResult').innerHTML = res.html;
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({manual_impressions: data})
+            })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        document.getElementById('checkResult').innerHTML = res.html;
 
-            // Включаем ресайз для новой таблицы
-            document.querySelectorAll('#checkResult table').forEach(makeColumnsResizable);
+                        // Включаем ресайз для новой таблицы
+                        document.querySelectorAll('#checkResult table').forEach(makeColumnsResizable);
 
-            // Безопасно показываем кнопки экспорта
-            const btnAll = document.getElementById('btnExportAll');
-            const btnErr = document.getElementById('btnExportErrors');
-            if (btnAll && btnErr) {
-                btnAll.style.display = 'inline-block';
-            btnErr.style.display = 'inline-block';
-                }
-            } else {
-                alert('Ошибка: ' + (res.error || 'неизвестная'));
-            }
-        })
-        .catch(err => alert('Ошибка соединения: ' + err.message))
-        .finally(() => {
-                btn.disabled = false;
-            btn.innerHTML = originalText;
-        });
-    }
+                        // Безопасно показываем кнопки экспорта
+                        const btnAll = document.getElementById('btnExportAll');
+                        const btnErr = document.getElementById('btnExportErrors');
+                        if (btnAll && btnErr) {
+                            btnAll.style.display = 'inline-block';
+                            btnErr.style.display = 'inline-block';
+                        }
+                    } else {
+                        alert('Ошибка: ' + (res.error || 'неизвестная'));
+                    }
+                })
+                .catch(err => alert('Ошибка соединения: ' + err.message))
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                });
+        }
 
-            // 4. Экспорт в CSV
-            function exportTable(errorsOnly = false) {
-        const table = document.querySelector('#checkResult table');
+        // 4. Экспорт в CSV
+        function exportTable(errorsOnly = false) {
+            const table = document.querySelector('#checkResult table');
             if (!table) return;
 
             let csvContent = "";
-        
-        const headers = Array.from(table.querySelectorAll('thead th')).map(th => `"${th.innerText.trim()}"`);
+
+            const headers = Array.from(table.querySelectorAll('thead th')).map(th => `"${th.innerText.trim()}"`);
             csvContent += headers.join(";") + "\r\n";
 
             const rows = table.querySelectorAll('tbody tr');
-        rows.forEach(row => {
-            if (errorsOnly && !row.classList.contains('row-error')) return;
+            rows.forEach(row => {
+                if (errorsOnly && !row.classList.contains('row-error')) return;
 
-            const cells = Array.from(row.querySelectorAll('td')).map(td => {
-                let text = td.innerText.trim().replace(/(\r\n|\n|\r)/gm, " ");
-            text = text.replace(/"/g, '""');
-            return `"${text}"`;
+                const cells = Array.from(row.querySelectorAll('td')).map(td => {
+                    let text = td.innerText.trim().replace(/(\r\n|\n|\r)/gm, " ");
+                    text = text.replace(/"/g, '""');
+                    return `"${text}"`;
+                });
+
+                csvContent += cells.join(";") + "\r\n";
             });
 
-            csvContent += cells.join(";") + "\r\n";
-        });
-
-            const blob = new Blob(["\uFEFF" + csvContent], {type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob(["\uFEFF" + csvContent], {type: 'text/csv;charset=utf-8;'});
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
 
@@ -734,12 +758,12 @@ unset($group);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-    }
+        }
 
-            // Инициализация при загрузке страницы
-            document.addEventListener('DOMContentLoaded', function () {
-                document.querySelectorAll('.compare-table-wrap table').forEach(makeColumnsResizable);
-    });
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.compare-table-wrap table').forEach(makeColumnsResizable);
+        });
     </script>
 </body>
 

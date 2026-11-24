@@ -13,7 +13,7 @@ $pdo = Database::getInstance()->getConnection();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_impressions'])) {
     $stmt = $pdo->prepare("INSERT INTO fact_impressions (act_number, impressions) VALUES (:act, :imp) ON DUPLICATE KEY UPDATE impressions = :imp");
     foreach ($_POST['impressions'] as $act => $val) {
-        $clean = (int)preg_replace('/\D+/', '', $val);
+        $clean = (int) preg_replace('/\D+/', '', $val);
         $stmt->execute([':act' => $act, ':imp' => $clean]);
     }
     $success = "Данные успешно обновлены!";
@@ -24,6 +24,7 @@ $impressions = $pdo->query("SELECT * FROM fact_impressions ORDER BY act_number D
 ?>
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
     <title>Фактические показы - ORD Check-Acts</title>
@@ -31,6 +32,7 @@ $impressions = $pdo->query("SELECT * FROM fact_impressions ORDER BY act_number D
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/ORD-Check-acts/assets/css/style.css">
 </head>
+
 <body>
     <div class="dashboard-wrapper">
         <aside class="sidebar" id="sidebar">
@@ -39,9 +41,12 @@ $impressions = $pdo->query("SELECT * FROM fact_impressions ORDER BY act_number D
                 <div class="brand-text">ORD<span>Check</span></div>
             </div>
             <ul class="sidebar-nav">
-                <li><a href="/ORD-Check-acts/dashboard"><span class="nav-icon"><i class="fas fa-th-large"></i></span> Дашборд</a></li>
-                <li><a href="/ORD-Check-acts/impressions" class="active"><span class="nav-icon"><i class="fas fa-chart-bar"></i></span> Факт. показы</a></li>
-                <li><a href="/ORD-Check-acts/login?action=logout" class="logout"><span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span> Выйти</a></li>
+                <li><a href="/ORD-Check-acts/dashboard"><span class="nav-icon"><i class="fas fa-th-large"></i></span>
+                        Дашборд</a></li>
+                <li><a href="/ORD-Check-acts/impressions" class="active"><span class="nav-icon"><i
+                                class="fas fa-chart-bar"></i></span> Факт. показы</a></li>
+                <li><a href="/ORD-Check-acts/login?action=logout" class="logout"><span class="nav-icon"><i
+                                class="fas fa-sign-out-alt"></i></span> Выйти</a></li>
             </ul>
         </aside>
 
@@ -75,22 +80,30 @@ $impressions = $pdo->query("SELECT * FROM fact_impressions ORDER BY act_number D
                                 </thead>
                                 <tbody>
                                     <?php if (empty($impressions)): ?>
-                                        <tr><td colspan="3" class="text-center text-muted">Нет сохраненных данных</td></tr>
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted">Нет сохраненных данных</td>
+                                        </tr>
                                     <?php endif; ?>
+
                                     <?php foreach ($impressions as $row): ?>
                                         <tr>
-                                            <td><strong><?= htmlspecialchars($row['act_number']) ?></strong></td>
                                             <td>
-                                                <input type="text" name="impressions[<?= htmlspecialchars($row['act_number']) ?>]" 
-                                                       value="<?= htmlspecialchars($row['impressions']) ?>" 
-                                                       class="form-control" style="max-width:200px;">
+                                                <strong><?php echo htmlspecialchars($row['act_number']); ?></strong>
                                             </td>
-                                            <td class="text-muted"><?= date('d.m.Y H:i', strtotime($row['updated_at'])) ?></td>
+                                            <td>
+                                                <input type="text"
+                                                    name="impressions[<?php echo htmlspecialchars($row['act_number']); ?>]"
+                                                    value="<?php echo htmlspecialchars($row['impressions']); ?>"
+                                                    class="form-control" style="max-width:200px;">
+                                            </td>
+                                            <td class="text-muted">
+                                                <?php echo date('d.m.Y H:i', strtotime($row['updated_at'])); ?>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
-                            
+
                             <?php if (!empty($impressions)): ?>
                                 <button type="submit" name="save_impressions" class="btn-primary mt-3">
                                     <i class="fas fa-save"></i> Сохранить изменения
@@ -103,4 +116,5 @@ $impressions = $pdo->query("SELECT * FROM fact_impressions ORDER BY act_number D
         </main>
     </div>
 </body>
+
 </html>
